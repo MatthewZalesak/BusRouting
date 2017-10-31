@@ -11,11 +11,11 @@ catch
     cw_children::Array{NodeWrapper}
     follower::Union{Void,NodeWrapper}         # If you stay idle at this location
     tracking::Bool                            # Has this variable been touched?
-    rode_pickup::Bool
+    rode_pickup::Bool                         # Can we ride a pickup from here?
     dist_pickup::Float64
     dist_bus::Float64
     dist_dropoff::Float64
-    caller_pickup::Union{Void,NodeWrapper}
+    caller_pickup::Union{Void,NodeWrapper}    # 'caller' fields enable backtracking.
     caller_bus::Union{Void,NodeWrapper}
     caller_dropoff::Union{Void,NodeWrapper}
     
@@ -128,7 +128,6 @@ function update_nodewrapper_bus(n::NodeWrapper, frontier::Array{NodeWrapper},
     pf::PathFinder)
   distance = min(n.dist_pickup, n.dist_bus)
   for child in n.arc_children
-    #t = pf.prob.param.lambda * pf.prob.data.arcs[(n.n, child.n)].data.time
     t = pf.prob.param.lambda * pf.prob.param.time_resolution * (child.n.t - n.n.t)
     z = pf.prob.data.arcs[(n.n, child.n)].data.dualvalue
     total = t + z + distance
@@ -178,7 +177,8 @@ function dijkstra(pf::PathFinder, origin::Node, destination::Int64)
     
     if terminal_condition(n, destination)
       pathroute, independentcost = unwrap(n, pf)
-      path = Path(pathroute, independentcost, n.n.t - origin.t, 0)
+      path = Path(pathroute, independentcost,
+          pf.prob.param.time_resolution * (n.n.t - origin.t), 0)
       dualdistance = min(n.dist_pickup, n.dist_bus, n.dist_dropoff)
       cleanup(frontier)
       cleanup(explored)
@@ -205,38 +205,41 @@ function duplicate_check(pf::PathFinder, path::Path)
   end
 end
 
-function apply_path(pf::PathFinder, path::Path, o::Node, d::Int64)
+function apply_path(pf::PathFinder, path::Path)
+  o, d = od(path)
   path.index = length(pf.prob.comp.paths) + 1
   push!(pf.prob.comp.paths, path)
-  push!(pf.prob.comp.ST[(o, d)], path.index)
+  push!(pf.prob.comp.ST[(o, d.id)], path.index)
   
   for arc in path.route.buses
     push!(pf.prob.comp.lookup_paths[arc], path.index)
   end
-  cost = path.independentcost + pf.prob.param.lambda * 
-      path.taketime * pf.prob.param.time_resolution
+  cost = path.independentcost + pf.prob.param.lambda * path.taketime
   push!(pf.prob.comp.pathcosts, cost)
   
   duplicate_check(pf, path)
 end
 
 function search_path(pf::PathFinder)
-  paths = Tuple{Path, Node, Int64, Float64}[]
-  for (p, (o, d)) in zip(pf.prob.sol.dualdemand, keys(pf.prob.data.demands))
+  count = 0 # This is only used as a statistic to display to the user.
+  
+  paths = Tuple{Path, Float64}[]
+  for (x, (o, d)) in zip(pf.prob.sol.dualdemand, keys(pf.prob.data.demands))
     pf.prob.data.demands[(o, d)] > 0 || continue
     path, duallength = dijkstra(pf, o, d)
-    excess = p - duallength
+    excess = x - duallength
     if excess > pf.prob.param.epsilon
-      push!(paths, (path, o, d, excess))
-      sort!(paths, by = x->x[4], rev=true)
+      count += 1
+      push!(paths, (path, excess))
+      sort!(paths, by = p->p[2], rev=true)
       length(paths) > prob.param.batch_path ? pop!(paths) : nothing
     end
   end
   
-  for (path, origin, dest, excess) in paths
-    apply_path(pf, path, origin, dest)
+  for (path, excess) in paths
+    apply_path(pf, path)
   end
   
-  println("Paths added: ", length(paths))
+  println("Paths added: ", length(paths), " out of ", count)
   return length(paths) > 0
 end

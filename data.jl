@@ -79,7 +79,8 @@ type Parameter
   bus_fixedcost::Float64
   cycletimes::Array{Int64}
   epsilon::Float64
-  integer::Bool
+  integer_f::Bool
+  integer_y::Bool
   lambda::Float64
   search_weighting::Float64
   terminal_count::Int64
@@ -136,7 +137,8 @@ immutable PathRoute
   dropoff::Union{Void,Carway}
 end
 function ==(a::PathRoute, b::PathRoute)
-  if a.dropoff != b.dropoff || length(a.pickup) != length(b.pickup) || length(a.buses) != length(b.buses)
+  if a.dropoff != b.dropoff || length(a.pickup) != length(b.pickup) ||
+      length(a.buses) != length(b.buses)
     return false
   end
   for (i, j) in zip(a.pickup, b.pickup)
@@ -147,12 +149,27 @@ function ==(a::PathRoute, b::PathRoute)
   end
   return true
 end
+function od(pr::PathRoute)
+  origin = (length(pr.pickup) > 0) ? pr.pickup[1].o : pr.buses[1].o
+  destination = nothing::Union{Void,Node}
+  if pr.dropoff != nothing
+    destination = pr.dropoff.d
+  elseif length(pr.buses) > 0
+    destination = pr.buses[end].d
+  else
+    destination = pr.pickup[end].d
+  end
+  return origin, destination
+end
 
 type Path
   route::PathRoute
   independentcost::Float64
   taketime::Float64           # Units do not include time_resolution.
   index::Int64
+end
+function od(p::Path)
+  return od(p.route)
 end
 
 type Computed
@@ -226,62 +243,47 @@ type Problem
   end
 end
 
+function cost(path::Path, prob::Problem)
+  return prob.param.lambda * path.taketime + path.independentcost
+end
+function restorepathcost(prob::Problem)
+  for (i, p) in enumerate(prob.comp.paths)
+    prob.comp.pathcosts[i] = cost(p, prob)
+  end
+end
+
 
 
 ### SPECIAL FUNCTION FOR VISUALIZING VARIABLES. ###
 
-function display(n::Node)
-  print("Node(", n.t, ", ", n.id, ")")
+function show(io::IO, n::Node)
+  print("Node(l", n.id, ", t", n.t, ")")
 end
 
-function display(ad::ArcData)
+function show(io::IO, ad::ArcData)
   print("ArcData(", ad.time, ", ", round(ad.dualvalue, 6), ")")
 end
 
-function display(a::Arc)
-  print("Arc(")
-  display(a.o)
-  print(", ")
-  display(a.d)
-  print(", ")
-  display(a.data)
-  print(")")
-end
-
-function display(c::Carway)
-  print("Carway(")
-  display(c.o)
-  print(", ")
-  display(c.d)
-  print(")")
-end
-
-function display(pr::PathRoute)
+function show(io::IO, pr::PathRoute)
   print("PathRoute(pickups=> ")
   for p in pr.pickup
-    display(p)
+    show(io, p)
     print(", ")
   end
   print("buses=> ")
   for b in pr.buses
-    display(b)
+    show(io, b)
     print(", ")
   end
   print("dropoff=> ")
   if pr.dropoff != nothing
-    display(pr.dropoff)
+    show(io, pr.dropoff)
   end
   print(")")
 end
-function show(pr::PathRoute)
-  display(pf)
-end
 
-function display(p::Path)
+function show(io::IO, p::Path)
   print("Path(ID ", p.index, ", ")
-  display(p.route)
+  show(io, p.route)
   print(", duration: ", p.taketime, ")")
-end
-function show(p::Path)
-  display(p)
 end

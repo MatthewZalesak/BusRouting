@@ -15,16 +15,39 @@ function draw_terminals(prob::Problem)
   scatter!(xs, ys, label = "Terminals")
 end
 
-function draw_line(line::Line)
+function draw_list(array, text::String, width::Float64)
   pathx = Float64[]
   pathy = Float64[]
-  for a in line.line # A set of argcs
+  for a in array
     push!(pathx, a.o.x)
     push!(pathy, a.o.y)
   end
-  push!(pathx, line.line[end].d.x)
-  push!(pathy, line.line[end].d.y)
-  plot!(pathx, pathy, label = "Bus Line " * string(line.index), linewidth=3)
+  push!(pathx, array[end].d.x)
+  push!(pathy, array[end].d.y)
+  plot!(pathx, pathy, label=text, linewidth=width)
+end
+
+function draw_line(line::Line)
+  text = "Bus Line " * string(line.index)
+  draw_list(line.line, text, 3.0)
+end
+
+function draw_path(path::Path)
+  penultimate = nothing::Union{Void,Node}
+  name = "Path " * string(path.index)
+  if length(path.route.pickup) > 0
+    draw_list(path.route.pickup, name * " (pickup)", 1.0)
+    penultimate = path.route.pickup[end].d
+  end
+  if length(path.route.buses) > 0
+    draw_list(path.route.buses, name * " (bus)", 1.0)
+    penultimate = path.route.buses[end].d
+  end
+  if path.route.dropoff != nothing
+    plot!([penultimate.x, path.route.dropoff,x],
+        [penultimate.y, path.route.dropoff.y],
+        label=name * " (dropoff)", linewidth = 1)
+  end
 end
 
 function draw_demand(prob::Problem)
@@ -54,7 +77,23 @@ function draw_demand(prob::Problem)
       push!(demandy, Inf)
     end
   end
-  plot!(demandx, demandy)
+  plot!(demandx, demandy, label="Demand")
+end
+
+#= These functions are packaged visualization functions. =#
+
+function visual_line(prob::Problem, index::Int64)
+  plot()
+  draw_terminals(prob)
+  draw_line(prob.comp.lines[index])
+  gui()
+end
+
+function visual_path(prob::Problem, index::Int64)
+  plot()
+  draw_terminals(prob)
+  draw_path(prob.comp.paths[index])
+  gui()
 end
 
 function visual_basic(prob::Problem)
@@ -63,7 +102,7 @@ function visual_basic(prob::Problem)
   draw_terminals(prob)
   draw_demand(prob)
   for (i, f_l) in enumerate(prob.sol.f)
-    if f_l > 0
+    if f_l > 0.9
       draw_line(prob.comp.lines[i])
     end
   end

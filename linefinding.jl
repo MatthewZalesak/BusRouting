@@ -1,130 +1,135 @@
 # linefinding.jl
 
-# Try statement protects items that cannot be initialized more than once.
+# Try statement protects items that cannot be initialized more than once.  Since
+# MultiNodeWrapper references itself it will cause an error if we try to reload it.
 try
   linefinding_init
 catch
-  type DummyNodeWrapper
+  type MultiNodeWrapper
     n::Node
     distance::Float64
-    caller::Union{Void, DummyNodeWrapper}
-    children::Array{DummyNodeWrapper}
+    caller::Union{Void, MultiNodeWrapper}   # 'caller' field enables backtracking.
+    children::Array{MultiNodeWrapper}
     
-    function DummyNodeWrapper(n::Node)
-      return new(n, -Inf, nothing, DummyNodeWrapper[])
+    function MultiNodeWrapper(n::Node)
+      return new(n, -Inf, nothing, MultiNodeWrapper[])
     end
   end
 end
 linefinding_init = true
 
-type DummyArc
-  o::DummyNodeWrapper
-  d::DummyNodeWrapper
+type MultiArc
+  o::MultiNodeWrapper
+  d::MultiNodeWrapper
   dualvalue::Float64
   arcs::Array{Arc}
 end
 
+#= LineFinder holds a compression of a graph to find cyclic bus lines. =#
 type LineFinder
   cycletime::Int64
-  dummy_arcs::Dict{Tuple{DummyNodeWrapper,DummyNodeWrapper},DummyArc}
-  graph::Array{DummyNodeWrapper}
-  lookup::Dict{Node,DummyNodeWrapper}
+  multi_arcs::Dict{Tuple{MultiNodeWrapper,MultiNodeWrapper},MultiArc}
+  graph::Array{MultiNodeWrapper}
+  lookup::Dict{Node,MultiNodeWrapper}
   prob::Problem
   
   function LineFinder(prob::Problem, cycletime::Int64)
-    dummy_arcs = Dict{Tuple{DummyNodeWrapper,DummyNodeWrapper},DummyArc}()
-    graph = Array{DummyNodeWrapper}(prob.param.terminal_count * (cycletime + 1))
-    lookup = Dict{Node,DummyNodeWrapper}()
     maximum_time = prob.data.terminals[end].t
     @assert(cycletime + 1 <= maximum_time)
     
-    for i = 1:length(graph) # Populate graph
+    # Define primary components for type.
+    multi_arcs = Dict{Tuple{MultiNodeWrapper,MultiNodeWrapper},MultiArc}()
+    graph = Array{MultiNodeWrapper}(prob.param.terminal_count * (cycletime + 1))
+    lookup = Dict{Node,MultiNodeWrapper}()
+    
+    # Construct the object.
+    
+    for i = 1:length(graph) # Populate graph, two loops
       n = prob.data.terminals[i]
-      dnw = DummyNodeWrapper(n)
-      graph[i], lookup[n] = dnw, dnw
+      mnw = MultiNodeWrapper(n)
+      graph[i], lookup[n] = mnw, mnw
     end
-    for dnw in graph
-      for child in prob.data.arc_children[dnw.n]
-        child.t <= cycletime + 1 && push!(dnw.children, lookup[child])
+    for mnw in graph
+      for child in prob.data.arc_children[mnw.n]
+        child.t <= cycletime + 1 && push!(mnw.children, lookup[child])
       end
     end
     
-    for ((o, d), a) in prob.data.arcs # Populate dummy_arcs
+    for ((o, d), a) in prob.data.arcs # Populate multi_arcs
       if d.t <= cycletime + 1
         o_wrapper, d_wrapper = lookup[o], lookup[d]
-        dummy_arcs[(o_wrapper, d_wrapper)] = DummyArc(o_wrapper, d_wrapper,0, Arc[])
+        multi_arcs[(o_wrapper, d_wrapper)] = MultiArc(o_wrapper, d_wrapper,0, Arc[])
       end
     end
-    for ((o, d), a) in prob.data.arcs
+    for ((o, d), a) in prob.data.arcs # (collapsing arcs onto cyclic time window)
       ot = (o.t - 1) % cycletime + 1
       dt = (d.t - 1) % cycletime > 0 ? (d.t - 1) % cycletime + 1 : cycletime + 1
       (ot < dt && dt - ot == d.t - o.t) || continue
       o_short = graph[(ot - 1) * prob.param.terminal_count + o.id] # Uses that nodes
       d_short = graph[(dt - 1) * prob.param.terminal_count + d.id] # are sorted.
-      push!(dummy_arcs[(o_short, d_short)].arcs, a)
-      dummy_arcs[(o_short, d_short)].dualvalue += a.data.dualvalue
+      push!(multi_arcs[(o_short, d_short)].arcs, a)
     end
     
-    return new(cycletime, dummy_arcs, graph, lookup, prob)
+    return new(cycletime, multi_arcs, graph, lookup, prob)
   end
 end
 
 function update(lfs::Array{LineFinder})
   for lf in lfs
-    for da in values(lf.dummy_arcs)
-      da.dualvalue = 0
-      for a in da.arcs
-        da.dualvalue += a.data.dualvalue
+    for ma in values(lf.multi_arcs)
+      ma.dualvalue = 0
+      for a in ma.arcs
+        ma.dualvalue += a.data.dualvalue
       end
     end
   end
 end
 
 function cleanup(lf::LineFinder)
-  for dnw in lf.graph
-    dnw.caller = nothing
-    dnw.distance = -Inf
+  for mnw in lf.graph
+    mnw.caller = nothing
+    mnw.distance = -Inf
   end
 end
 
 function bellmanford(lf::LineFinder, origin::Int64)
   lf.graph[origin].distance = 0
-  for dnw in lf.graph
-    for child in dnw.children
-      distance = dnw.distance + 
-          lf.prob.param.bus_capacity * lf.dummy_arcs[(dnw, child)].dualvalue -
-          (lf.prob.param.permile_bus * lf.prob.data.distances[(dnw.n.id, child.n.id)] *
-              length(lf.dummy_arcs[(dnw, child)].arcs))
+  for mnw in lf.graph
+    for child in mnw.children
+      distance = mnw.distance + 
+          lf.prob.param.bus_capacity * lf.multi_arcs[(mnw, child)].dualvalue -
+          ( lf.prob.param.permile_bus * 
+              lf.prob.data.distances[(mnw.n.id, child.n.id)] *
+              length(lf.multi_arcs[(mnw, child)].arcs) )
       if distance > child.distance
         child.distance = distance
-        child.caller = dnw
+        child.caller = mnw
       end
     end
   end
   
   tail = lf.graph[length(lf.graph) - lf.prob.param.terminal_count + origin]
-  @assert(tail.n.id == origin)
   len = tail.distance
+  @assert(tail.n.id == origin)  # Hopefully unecessary, error checking only.
   
-  line = DummyArc[]
+  line = MultiArc[]
   while tail.caller != nothing
     parent = tail.caller
-    push!(line, lf.dummy_arcs[(parent, tail)])
+    push!(line, lf.multi_arcs[(parent, tail)])
     tail = parent
   end
   reverse!(line)
   
   cleanup(lf)
-  @assert(tail.n.id == origin)
   return line, len
 end
 
-function expand_line(lf::LineFinder, da::Array{DummyArc})
+function expand_line(lf::LineFinder, ma::Array{MultiArc})
   line = Arc[]
   iteration = 1
   cont = true
   while cont
-    for a in da
+    for a in ma
       iteration <= length(a.arcs) || (cont = false ; break)
       push!(line, a.arcs[iteration])
     end
@@ -163,7 +168,7 @@ end
 function search_line(lfs::Array{LineFinder})
   update(lfs)
   
-  lines = Tuple{LineFinder,Array{DummyArc},Float64}[]
+  lines = Tuple{LineFinder,Array{MultiArc},Float64}[]
   for lf in lfs
     for origin in 1:lf.prob.param.terminal_count
       arcs, len = bellmanford(lf, origin)
@@ -175,8 +180,8 @@ function search_line(lfs::Array{LineFinder})
     end
   end
   
-  for (lf, dummyarcs, len) in lines
-    line = expand_line(lf, dummyarcs)
+  for (lf, multiarcs, len) in lines
+    line = expand_line(lf, multiarcs)
     apply_line(lf, line, len)
   end
   
