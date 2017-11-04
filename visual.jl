@@ -3,6 +3,80 @@
 using Plots
 
 
+#= Special functions for visualizing variables. =#
+
+function show(io::IO, n::Node)
+  print(io, "Node(L", n.id, ", t", n.t, ")")
+end
+
+function show(io::IO, ad::ArcData)
+  print(io, "ArcData(", ad.time, ", ", round(ad.dualvalue, 6), ")")
+end
+
+function show(io::IO, line::Line)
+  print(io, "Line(")
+  show(io, line.line)
+  print(io, ", cost => ", line.cost)
+  print(io, ", cyclelength => ", line.cyclelength)
+  print(io, ", ID => ", line.index, ")")
+end
+
+function show(io::IO, pr::PathRoute)
+  print(io, "PathRoute(pickups=> ")
+  for p in pr.pickup
+    show(io, p)
+    print(io, ", ")
+  end
+  print(io, "buses=> ")
+  for b in pr.buses
+    show(io, b)
+    print(io, ", ")
+  end
+  print(io, "dropoff=> ")
+  if pr.dropoff != nothing
+    show(io, pr.dropoff)
+  end
+  print(io, ")")
+end
+
+function show(io::IO, p::Path)
+  print(io, "Path(ID ", p.index, ", ")
+  show(io, p.route)
+  print(io, ", duration: ", p.taketime, ")")
+end
+
+function show(io::IO, nw::NodeWrapper)
+  print(io, "NodeWrapper(base => ", nw.n)
+  print(io, ", pickup dist => ", nw.dist_pickup)
+  print(io, ", bus dist => ", nw.dist_bus)
+  print(io, ", dropoff dist => ", nw.dist_dropoff, ")")
+end
+
+function show(io::IO, pf::PathFinder)
+  print(io, "PathFinder(graph size => ", length(pf.graph), ")")
+end
+
+function show(io::IO, mnw::MultiNodeWrapper)
+  print(io, "MultiNodeWrapper(base => ", mnw.n)
+  print(io, ", distance => ", mnw.distance)
+  if mnw.caller != nothing
+    print(io, ", caller <MultiNodeWrapper>")
+  else
+    print(io, ", caller <Void>")
+  end
+  print(io, ", children => (", length(mnw.children), "))")
+end
+
+function show(io::IO, ma::MultiArc)
+  print(io, "MultiArc(<o>, <d>, dualvalue => ", round(ma.dualvalue, 10))
+  print(io, ", arcs => (", length(ma.arcs), "))")
+end
+
+function show(io::IO, lf::LineFinder)
+  print(io, "LineFinder(cycletime => ", lf.cycletime, ")")
+end
+
+
 #= These are basic building blocks of visuals. =#
 
 function draw_terminals(prob::Problem)
@@ -97,7 +171,6 @@ function visual_path(prob::Problem, index::Int64)
 end
 
 function visual_basic(prob::Problem)
-  println("hi")
   plot()
   draw_terminals(prob)
   draw_demand(prob)

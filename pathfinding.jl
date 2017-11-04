@@ -31,6 +31,7 @@ pathfinding_init = true
 function cleanup(a::Array{NodeWrapper})
   for x = a
     x.tracking = false
+    x.rode_pickup = false
     x.dist_pickup, x.dist_bus, x.dist_dropoff = Inf, Inf, Inf
     x.caller_pickup, x.caller_bus, x.caller_dropoff = nothing, nothing, nothing
   end
@@ -220,7 +221,23 @@ function apply_path(pf::PathFinder, path::Path)
   duplicate_check(pf, path)
 end
 
-function search_path(pf::PathFinder)
+function undo_path(prob::Problem)
+  # Update prob.comp.paths, prob.comp.pathcosts, prob.comp.ST, arcs
+  path = pop!(prob.comp.paths)
+  o, d = od(path)
+  
+  pop!(prob.comp.pathcosts)
+  pop!(prob.comp.ST[(o, d.id)])
+  for arc in path.route.buses
+    pop!(prob.comp.lookup_paths[arc])
+  end
+end
+
+function undo_path(prob::Problem, num::Int64)
+  return map(undo_path, 1:num)
+end
+
+function search_path(pf::PathFinder, modify::Bool)
   count = 0 # This is only used as a statistic to display to the user.
   
   paths = Tuple{Path, Float64}[]
@@ -236,10 +253,16 @@ function search_path(pf::PathFinder)
     end
   end
   
-  for (path, excess) in paths
-    apply_path(pf, path)
+  if modify
+    for (path, excess) in paths
+      apply_path(pf, path)
+    end
   end
   
   println("Paths added: ", length(paths), " out of ", count)
   return length(paths) > 0
+end
+
+function search_path(pf::PathFinder)
+  return search_path(pf, true)
 end

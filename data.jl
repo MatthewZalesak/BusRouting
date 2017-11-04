@@ -89,18 +89,6 @@ type Parameter
   speed::Float64
 end
 
-function distance(a::Node, b::Node)
-  return sqrt((a.x - b.x)^2 + (a.y - b.y)^2)
-end
-
-function populate_distances(data::Data)
-  for i = 1:length(data.locations)
-    for j = 1:length(data.locations)
-      data.distances[(i, j)] = distance(data.locations[i][1], data.locations[j][1])
-    end
-  end
-end
-
 #= This function finds a destination node.  If it returns o, there was an error. =#
 function route(o::Node, d::Array{Node}, dists::Dict{Tuple{Int64,Int64},Float64},
     speed::Float64, time_resolution::Float64)
@@ -119,6 +107,7 @@ function route(o::Node, d::Array{Node}, dists::Dict{Tuple{Int64,Int64},Float64},
     return o
   end
 end
+
 function route(pair::Tuple{Node,Int64}, data::Data, param::Parameter)
   return route(pair[1], data.locations[pair[2]], data.distances, param.speed, 
       param.time_resolution)
@@ -136,31 +125,7 @@ immutable PathRoute
   buses::Array{Arc}
   dropoff::Union{Void,Carway}
 end
-function ==(a::PathRoute, b::PathRoute)
-  if a.dropoff != b.dropoff || length(a.pickup) != length(b.pickup) ||
-      length(a.buses) != length(b.buses)
-    return false
-  end
-  for (i, j) in zip(a.pickup, b.pickup)
-    i == j || return false
-  end
-  for (i, j) in zip(a.buses, b.buses)
-    i == j || return false
-  end
-  return true
-end
-function od(pr::PathRoute)
-  origin = (length(pr.pickup) > 0) ? pr.pickup[1].o : pr.buses[1].o
-  destination = nothing::Union{Void,Node}
-  if pr.dropoff != nothing
-    destination = pr.dropoff.d
-  elseif length(pr.buses) > 0
-    destination = pr.buses[end].d
-  else
-    destination = pr.pickup[end].d
-  end
-  return origin, destination
-end
+
 
 type Path
   route::PathRoute
@@ -243,47 +208,54 @@ type Problem
   end
 end
 
+
+#= General useful functions. =#
+
 function cost(path::Path, prob::Problem)
   return prob.param.lambda * path.taketime + path.independentcost
 end
+
+function distance(a::Node, b::Node)
+  return sqrt((a.x - b.x)^2 + (a.y - b.y)^2)
+end
+
+function ==(a::PathRoute, b::PathRoute)
+  if a.dropoff != b.dropoff || length(a.pickup) != length(b.pickup) ||
+      length(a.buses) != length(b.buses)
+    return false
+  end
+  for (i, j) in zip(a.pickup, b.pickup)
+    i == j || return false
+  end
+  for (i, j) in zip(a.buses, b.buses)
+    i == j || return false
+  end
+  return true
+end
+
+function od(pr::PathRoute)
+  origin = (length(pr.pickup) > 0) ? pr.pickup[1].o : pr.buses[1].o
+  destination = nothing::Union{Void,Node}
+  if pr.dropoff != nothing
+    destination = pr.dropoff.d
+  elseif length(pr.buses) > 0
+    destination = pr.buses[end].d
+  else
+    destination = pr.pickup[end].d
+  end
+  return origin, destination
+end
+
+function populate_distances(data::Data)
+  for i = 1:length(data.locations)
+    for j = 1:length(data.locations)
+      data.distances[(i, j)] = distance(data.locations[i][1], data.locations[j][1])
+    end
+  end
+end
+
 function restorepathcost(prob::Problem)
   for (i, p) in enumerate(prob.comp.paths)
     prob.comp.pathcosts[i] = cost(p, prob)
   end
-end
-
-
-
-### SPECIAL FUNCTION FOR VISUALIZING VARIABLES. ###
-
-function show(io::IO, n::Node)
-  print("Node(l", n.id, ", t", n.t, ")")
-end
-
-function show(io::IO, ad::ArcData)
-  print("ArcData(", ad.time, ", ", round(ad.dualvalue, 6), ")")
-end
-
-function show(io::IO, pr::PathRoute)
-  print("PathRoute(pickups=> ")
-  for p in pr.pickup
-    show(io, p)
-    print(", ")
-  end
-  print("buses=> ")
-  for b in pr.buses
-    show(io, b)
-    print(", ")
-  end
-  print("dropoff=> ")
-  if pr.dropoff != nothing
-    show(io, pr.dropoff)
-  end
-  print(")")
-end
-
-function show(io::IO, p::Path)
-  print("Path(ID ", p.index, ", ")
-  show(io, p.route)
-  print(", duration: ", p.taketime, ")")
 end

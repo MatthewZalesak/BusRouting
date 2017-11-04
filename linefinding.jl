@@ -145,27 +145,51 @@ function expand_line(lf::LineFinder, ma::Array{MultiArc})
   return Line(line, cost, lf.cycletime, 0)
 end
 
+function dualvalue(lf::LineFinder, line::Line)
+  value = 0
+  for a in line.line
+    value += ( lf.prob.param.bus_capacity * a.data.dualvalue -
+        lf.prob.param.permile_bus * lf.prob.data.distances[(a.o.id, a.d.id)] )
+  end
+  return value
+end
+
 function duplicate_check(lf::LineFinder, line::Line, len::Float64)
   for l in lf.prob.comp.lines
     if l.line == line.line && l != line
+      l.index > length(lf.prob.sol.f) && return true
       throw(ErrorException("This line was a repeat." * string(len)))
     end
   end
+  return false
 end
 
 function apply_line(lf::LineFinder, line::Line, len::Float64)
   line.index = length(lf.prob.comp.lines) + 1
+  duplicate_check(lf, line, len) && return # Skip duplicates added this session.
   push!(lf.prob.comp.lines, line)
   
   for arc in line.line
     push!(lf.prob.comp.lookup_lines[arc], line.index)
   end
   push!(lf.prob.comp.linecosts, line.cost)
-  
-  duplicate_check(lf, line, len)
 end
 
-function search_line(lfs::Array{LineFinder})
+function undo_line(prob::Problem)
+  # Upate prob.comp.linecosts, prob.comp.lookup_lines[arc], prob.comp.lines
+  line = pop!(prob.comp.lines)
+  pop!(prob.comp.linecosts)
+  for arc in line.line
+    pop!(prob.comp.lookup_lines[arc])
+  end
+  return line
+end
+
+function undo_line(prob::Problem, num::Int64)
+  return map(undo_line, 1:num)
+end
+
+function search_line(lfs::Array{LineFinder}, modify::Bool)
   update(lfs)
   
   lines = Tuple{LineFinder,Array{MultiArc},Float64}[]
@@ -180,11 +204,17 @@ function search_line(lfs::Array{LineFinder})
     end
   end
   
-  for (lf, multiarcs, len) in lines
-    line = expand_line(lf, multiarcs)
-    apply_line(lf, line, len)
+  if modify
+    for (lf, multiarcs, len) in lines
+      line = expand_line(lf, multiarcs)
+      apply_line(lf, line, len)
+    end
   end
   
   println("Lines added: ", length(lines))
   return length(lines) > 0
+end
+
+function search_line(lfs::Array{LineFinder})
+  return search_line(lfs, true)
 end

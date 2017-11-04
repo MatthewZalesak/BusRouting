@@ -15,7 +15,7 @@ end
 
 function synthetic_uniform(req::Request)
   @assert req.terminal_count > 1
-  println("\tBuilding using seed ", Base.Random.GLOBAL_RNG.seed)
+  println("     Building using seed ", Base.Random.GLOBAL_RNG.seed)
   
   endtime = Int64(div(req.timelength, req.time_resolution))
   locations = rand(2, req.terminal_count) .* [req.width; req.height]
