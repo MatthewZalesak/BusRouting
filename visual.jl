@@ -80,22 +80,14 @@ end
 #= These are basic building blocks of visuals. =#
 
 function draw_terminals(prob::Problem)
-  xs = Float64[]
-  ys = Float64[]
-  for t in prob.data.terminals
-    push!(xs, t.x)
-    push!(ys, t.y)
-  end
+  xs = [t.x for t in prob.data.terminals]
+  ys = [t.y for t in prob.data.terminals]
   scatter!(xs, ys, label = "Terminals")
 end
 
 function draw_list(array, text::String, width::Float64)
-  pathx = Float64[]
-  pathy = Float64[]
-  for a in array
-    push!(pathx, a.o.x)
-    push!(pathy, a.o.y)
-  end
+  pathx = [a.o.x for a in array]::Array{Float64}
+  pathy = [a.o.y for a in array]::Array{Float64}
   push!(pathx, array[end].d.x)
   push!(pathy, array[end].d.y)
   plot!(pathx, pathy, label=text, linewidth=width)
@@ -127,10 +119,8 @@ end
 function draw_demand(prob::Problem)
   # We will flatten the demand over all time to a 2D-plane.
   flat_demand = Dict{Tuple{Int64,Int64},Int64}()
-  for i = 1:prob.param.terminal_count
-    for j = 1:prob.param.terminal_count
-      flat_demand[(i, j)] = 0
-    end
+  for (i, j) in zip(1:prob.param.terminal_count, 1:prob.param.terminal_count)
+    flat_demand[(i, j)] = 0
   end
   
   for ((origin, destid), value) in prob.data.demands

@@ -3,6 +3,7 @@
 include("data.jl")
 include("reports.jl")
 include("solver.jl")
+include("deepsolver.jl")
 include("visual.jl")
 include("synthetic.jl")
 include("experiments.jl")
@@ -32,13 +33,10 @@ println("Generating problem statement...")
 @time prob = Problem(data, param)
 
 pf = PathFinder(prob)
-lfs = LineFinder[]
-for c in cycletimes
-  push!(lfs, LineFinder(prob, c))
-end
+lfs = [LineFinder(prob, c) for c in cycletimes]
 
 println("Running the optimization routine.")
-@time autosolve(prob, pf, lfs)
+@time autosolvedeep(prob, pf, lfs)
 
 
 #visual_basic(prob)

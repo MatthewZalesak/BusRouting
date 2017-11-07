@@ -215,6 +215,10 @@ function cost(path::Path, prob::Problem)
   return prob.param.lambda * path.taketime + path.independentcost
 end
 
+function cost(prob::Problem)
+  return sum(prob.comp.pathcosts .* prob.sol.y) + sum(prob.comp.linecosts .* prob.sol.f)
+end
+
 function distance(a::Node, b::Node)
   return sqrt((a.x - b.x)^2 + (a.y - b.y)^2)
 end

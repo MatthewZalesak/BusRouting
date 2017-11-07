@@ -151,6 +151,11 @@ exp8 = quote
   # The problem is solved with objective 155978.93175262408! (1.00009651893)
   # Number of paths: 4549  (2189 selected)
   # Number of lines: 4083  (764 selected)
+  #
+  # Linear solve + rounding procedure.
+  # Objective value 157911.9065528978 (ratio 1.0124899556678246)
+  # Number of paths: 4549  (2170 selected)
+  # Number of lines: 4083  (737 selected)
 end
 
 exp9 = quote
@@ -168,7 +173,11 @@ exp9 = quote
   # Objective 144203.2652024319!  (1.000098867695943)
   # Number of paths: 4289  (2052 selected)
   # Number of lines: 3865  (826 selected)
-
+  #
+  # Linear + rounding procedure.
+  # Objective value 144936.32040198802 (ratio 1.0051828557318971)
+  # Number of paths: 4289  (2032 selected)
+  # Number of lines: 3865  (804 selected)
 end
 
 exp10 = quote
@@ -200,10 +209,15 @@ exp12 = quote
   # Objective value 153335.95900183098! (1.000051652966254)
   # Number of paths: 4450  (2143 selected)
   # Number of lines: 4057  (760 selected)
+  #
+  # Linear + rouning procedure.
+  # Objective value 155099.82883021983 (ratio 1.011555549045037)
+  # Number of paths: 4450  (2114 selected)
+  # Number of lines: 4057  (746 selected)
 end
 
 exp13 = quote
-srand(UInt32[0xa385c8aa, 0x05183f54, 0x86916f4c, 0xefdcf863])
+  srand(UInt32[0xa385c8aa, 0x05183f54, 0x86916f4c, 0xefdcf863])
   demand_count = 10000
   terminal_count = 8
   time_resolution = 5.0
@@ -255,4 +269,5 @@ exp15 = quote
   bus_fixedcost = 100.0 / 20
 end
 
-experiment = exp12
+name = :exp9
+experiment = eval(name)

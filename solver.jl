@@ -6,9 +6,37 @@ using Gurobi
 include("pathfinding.jl")
 include("linefinding.jl")
 
+#= These are modification function you can add to the 'runlp' function. =#
 
-function runlp(prob::Problem)
-  m = Model(solver = GurobiSolver(Presolve=0, OutputFlag=0))
+function mod_int(ysets::Array{Tuple{Int64,Float64}}, fsets::Array{Tuple{Int64,Float64}})
+  function f(prob::Problem, m::Model, y::Array{Variable}, f::Array{Variable})
+    for (i, v) in ysets
+      @constraint(m, y[i] == v)
+    end
+    for (i, v) in fsets
+      @constraint(m, f[i] == v)
+    end
+  end
+end
+
+function mod_randobj(prob::Problem, m::Model, y::Array{Variable}, f::Array{Variable})
+  @objective(m, :Min, sum(randn(length(y)) .* y) + sum(randn(length(f)) .* f))
+end
+
+function mod_round(prob::Problem, m::Model, y::Array{Variable}, f::Array{Variable})
+  for (yp, bound) in zip(y, ceil.(prob.sol.y))
+    @constraint(m, yp <= bound)
+  end
+  for (fl, bound) in zip(f, ceil.(prob.sol.f))
+    @constraint(m, fl <= bound)
+  end
+  @objective(m, :Min, sum(randn(length(y)) .* y) + sum(randn(length(f)) .* f))
+end
+
+#= This function actually executes the optimization step. =#
+
+function runlp(prob::Problem, modification::Union{Void,Function})
+   m = Model(solver = GurobiSolver(Presolve=0, OutputFlag=0))
   
   if prob.param.integer_y
     @variable(m, y[1:length(prob.comp.paths)] >= 0, Int)
@@ -42,6 +70,10 @@ function runlp(prob::Problem)
   
   @objective(m, :Min, sum(prob.comp.pathcosts.*y) + sum(prob.comp.linecosts.*f))
   
+  if modification != nothing
+    modification(prob, m, y, f)
+  end
+  
   if ( solve(m) != :Optimal )
     throw(ErrorException("No Optimal Solution found to this LP."))
   end
@@ -56,11 +88,14 @@ function runlp(prob::Problem)
     a.data.dualvalue = prob.sol.dualarc[i]
   end
   prob.sol.objective = m.objVal
-  
   return m
 end
 
+function runlp(prob::Problem)
+  return runlp(prob, nothing)
+end
 
+#= These functions run the column generation process. =#
 
 function autosolve(prob::Problem, pf::PathFinder, lfs::Array{LineFinder})
   if prob.param.integer_f || prob.param.integer_y
@@ -75,21 +110,11 @@ function autosolve(prob::Problem, pf::PathFinder, lfs::Array{LineFinder})
     println("Iteration: ", i, "\t(with objective ", prob.sol.objective, ".)")
     
     if rand() > prob.param.search_weighting # Control order new vars added in.
-      sp = search_path(pf)
-      if sp
-        continue
-      end
-      sl = search_line(lfs)
-      if sl
+      if search_path(pf) || search_line(lfs)
         continue
       end
     else
-      sl = search_line(lfs)
-      if sl
-        continue
-      end
-      sp = search_path(pf)
-      if sp
+      if search_line(lfs) || search_path(pf)
         continue
       end
     end
@@ -107,13 +132,10 @@ function autosolve(prob::Problem)
     return
   end
   
-  pathfinder = PathFinder(prob)   # These two objects reduce memory allocation
-  linefinders = LineFinder[]      # each iteration by preallocating what is needed.
-  for cycletime in prob.param.cycletimes
-    linefinder = LineFinder(prob, cycletime)
-    push!(linefinders, linefinder)
-  end
-  
+  # These reduce memory allocation each iteration by preallocating what is needed.
+  pathfinder = PathFinder(prob)
+  linefinders = [LineFinder(prob, c) for c in prob.param.cycletimes]
   autosolve(prob, pathfinder, linefinders)
+  
   return pathfinder, linefinders
 end
