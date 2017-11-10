@@ -24,12 +24,23 @@ catch
           Inf, nothing, nothing, nothing)
     end
   end
+  
+  using DataStructures # Load just once for convenicen
 end
 pathfinding_init = true
 
 
 function cleanup(a::Array{NodeWrapper})
   for x = a
+    x.tracking = false
+    x.rode_pickup = false
+    x.dist_pickup, x.dist_bus, x.dist_dropoff = Inf, Inf, Inf
+    x.caller_pickup, x.caller_bus, x.caller_dropoff = nothing, nothing, nothing
+  end
+end
+
+function cleanup(a::PriorityQueue{NodeWrapper,Float64})
+  for x = keys(a)
     x.tracking = false
     x.rode_pickup = false
     x.dist_pickup, x.dist_bus, x.dist_dropoff = Inf, Inf, Inf
@@ -99,15 +110,18 @@ function unwrap(n::NodeWrapper, pf::PathFinder)
   return pathroute, independentcost 
 end
 
-function tracking(n::NodeWrapper, frontier::Array{NodeWrapper})
+function tracking(n::NodeWrapper, frontier::PriorityQueue{NodeWrapper,Float64},
+    value::Float64)
   if !n.tracking
     n.tracking = true
-    push!(frontier, n)
+    enqueue!(frontier, n, value)
+  else
+    frontier[n] = value
   end
 end
 
 function update_nodewrapper_dropoff(n::NodeWrapper, destination::Int64,
-    frontier::Array{NodeWrapper}, pf::PathFinder)
+    frontier::PriorityQueue{NodeWrapper,Float64}, pf::PathFinder)
   dropoff = route((n.n, destination), pf.prob.data, pf.prob.param)
   
   if dropoff != n.n
@@ -120,13 +134,13 @@ function update_nodewrapper_dropoff(n::NodeWrapper, destination::Int64,
     if total < min(wrapper.dist_pickup, wrapper.dist_bus, wrapper.dist_dropoff)
       wrapper.dist_dropoff = total
       wrapper.caller_dropoff = n
-      tracking(wrapper, frontier)
+      tracking(wrapper, frontier, total)
     end
   end
 end
 
-function update_nodewrapper_bus(n::NodeWrapper, frontier::Array{NodeWrapper},
-    pf::PathFinder)
+function update_nodewrapper_bus(n::NodeWrapper,
+    frontier::PriorityQueue{NodeWrapper}, pf::PathFinder)
   distance = min(n.dist_pickup, n.dist_bus)
   for child in n.arc_children
     t = pf.prob.param.lambda * pf.prob.param.time_resolution * (child.n.t - n.n.t)
@@ -136,13 +150,13 @@ function update_nodewrapper_bus(n::NodeWrapper, frontier::Array{NodeWrapper},
     if total < min(child.dist_pickup, child.dist_bus, child.dist_dropoff)
       child.dist_bus = total
       child.caller_bus = n
-      tracking(child, frontier)
+      tracking(child, frontier, total)
     end
   end
 end
 
-function update_nodewrapper_pickup(n::NodeWrapper, frontier::Array{NodeWrapper},
-    pf::PathFinder)
+function update_nodewrapper_pickup(n::NodeWrapper,
+    frontier::PriorityQueue{NodeWrapper,Float64},  pf::PathFinder)
   n.rode_pickup && n.follower == nothing && return
   for child in (n.rode_pickup ? [n.follower] : n.cw_children)
     r = pf.prob.data.ridehailcosts[(n.n.id, child.n.id)]
@@ -153,7 +167,7 @@ function update_nodewrapper_pickup(n::NodeWrapper, frontier::Array{NodeWrapper},
       child.dist_pickup = total
       child.rode_pickup = true # n.n.id == child.n.id ? n.rode_pickup : true
       child.caller_pickup = n
-      tracking(child, frontier)
+      tracking(child, frontier, total)
     end
   end
 end
@@ -164,16 +178,17 @@ function terminal_condition(n::NodeWrapper, destination::Int64)
 end
 
 function dijkstra(pf::PathFinder, origin::Node, destination::Int64)
-  frontier = NodeWrapper[]
+  frontier = PriorityQueue{NodeWrapper,Float64}()
   explored = NodeWrapper[]
   
-  push!(frontier, pf.lookup[origin])
-  frontier[1].tracking = true
-  frontier[1].dist_pickup = 0
-  frontier[1].dist_bus = 0
+  head = pf.lookup[origin]
+  head.tracking = true
+  head.dist_pickup = 0
+  head.dist_bus = 0
+  enqueue!(frontier, head, 0)
   
   while true
-    n = pop!(frontier)
+    n = dequeue!(frontier)
     push!(explored, n)
     
     if terminal_condition(n, destination)
@@ -194,7 +209,7 @@ function dijkstra(pf::PathFinder, origin::Node, destination::Int64)
       update_nodewrapper_dropoff(n, destination, frontier, pf)
     end
     
-    sort!(frontier, by = x->min(x.dist_pickup,x.dist_bus,x.dist_dropoff), rev=true)
+    #sort!(frontier, by = x->min(x.dist_pickup,x.dist_bus,x.dist_dropoff), rev=true)
   end
 end
 
