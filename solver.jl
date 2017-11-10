@@ -6,15 +6,45 @@ using Gurobi
 include("pathfinding.jl")
 include("linefinding.jl")
 
+#= Useful function for checking a current solution. =#
+
+function feasible(prob::Problem)
+  acceptable = true
+  
+  if minimum(round.(prob.sol.y, 5)) < 0 || minimum(round.(prob.sol.f, 5)) < 0
+    warn("Negative values.")
+    return false
+  end
+  
+  for (key, value) in prob.data.demands
+    if abs(sum(prob.sol.y[prob.comp.ST[key]]) - value) > 0.00001
+      warn("Demand: key ", key, " value ", value, " actual ",
+          sum(prob.sol.y[prob.comp.ST[key]]))
+      acceptable = false
+    end
+  end
+  
+  for a in values(prob.data.arcs)
+    total = sum(prob.sol.y[prob.comp.lookup_paths[a]]) - 
+        prob.param.bus_capacity * sum(prob.sol.f[prob.comp.lookup_lines[a]])
+    if total > 0.00001
+      warn("Arc: a ", a, " constraint value ", total)
+      acceptable = false
+    end
+  end
+  return acceptable
+end
+
 #= These are modification function you can add to the 'runlp' function. =#
 
-function mod_int(ysets::Array{Tuple{Int64,Float64}}, fsets::Array{Tuple{Int64,Float64}})
+function mod_int(sets::Array{Tuple{Bool,Int64,Float64}})
   function f(prob::Problem, m::Model, y::Array{Variable}, f::Array{Variable})
-    for (i, v) in ysets
-      @constraint(m, y[i] == v)
-    end
-    for (i, v) in fsets
-      @constraint(m, f[i] == v)
+    for (is_path, i, v) in sets
+      if is_path
+        @constraint(m, y[i] == v)
+      else
+        @constraint(m, f[i] == v)
+      end
     end
   end
 end
@@ -33,9 +63,15 @@ function mod_round(prob::Problem, m::Model, y::Array{Variable}, f::Array{Variabl
   @objective(m, :Min, sum(randn(length(y)) .* y) + sum(randn(length(f)) .* f))
 end
 
+function mod_round2(prob::Problem, m::Model, y::Array{Variable}, f::Array{Variable})
+  bound = sum(prob.comp.pathcosts .* ceil.(prob.sol.y)) + sum(prob.comp.linecosts .* ceil.(prob.sol.f))
+  @constraint(m, sum(prob.comp.pathcosts .* y) + sum(prob.comp.linecosts .* f) <= bound)
+  @objective(m, :Min, sum(randn(length(y)) .* y) + sum(randn(length(f)) .* f))
+end
+
 #= This function actually executes the optimization step. =#
 
-function runlp(prob::Problem, modification::Union{Void,Function})
+function runlp(prob::Problem, modification::Array{Function})
    m = Model(solver = GurobiSolver(Presolve=0, OutputFlag=0))
   
   if prob.param.integer_y
@@ -70,8 +106,8 @@ function runlp(prob::Problem, modification::Union{Void,Function})
   
   @objective(m, :Min, sum(prob.comp.pathcosts.*y) + sum(prob.comp.linecosts.*f))
   
-  if modification != nothing
-    modification(prob, m, y, f)
+  for mod in modification
+    mod(prob, m, y, f)
   end
   
   if ( solve(m) != :Optimal )
@@ -91,8 +127,21 @@ function runlp(prob::Problem, modification::Union{Void,Function})
   return m
 end
 
+function runlp(prob::Problem, modification::Function)
+  a = Function[]
+  push!(a, modification)
+  return runlp(prob, a)
+end
+
 function runlp(prob::Problem)
-  return runlp(prob, nothing)
+  return runlp(prob, Function[])
+end
+
+function runip(prob::Problem)
+  y, f = prob.param.integer_y, prob.param.integer_f
+  prob.param.integer_y, prob.param.integer_f = true, true
+  runlp(prob)
+  prob.param.integer_y, prob.param.integer_f = y, f
 end
 
 #= These functions run the column generation process. =#
@@ -104,17 +153,27 @@ function autosolve(prob::Problem, pf::PathFinder, lfs::Array{LineFinder})
     return
   end
   
-  i = 100000 # max_iter
+  i = 1000000 # max_iter
   while (i -= 1) >= 0
-    runlp(prob)
+    @time runlp(prob)
     println("Iteration: ", i, "\t(with objective ", prob.sol.objective, ".)")
     
     if rand() > prob.param.search_weighting # Control order new vars added in.
-      if search_path(pf) || search_line(lfs)
+      sp = search_path(pf)
+      if sp
+        continue
+      end
+      sl = search_line(lfs)
+      if sl
         continue
       end
     else
-      if search_line(lfs) || search_path(pf)
+      sl = search_line(lfs)
+      if sl
+        continue
+      end
+      sp = search_path(pf)
+      if sp
         continue
       end
     end

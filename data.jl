@@ -263,3 +263,14 @@ function restorepathcost(prob::Problem)
     prob.comp.pathcosts[i] = cost(p, prob)
   end
 end
+
+function restorelinecost(prob::Problem)
+  for (i, l) in enumerate(prob.comp.lines)
+    prob.comp.linecosts[i] = l.cost
+  end
+end
+
+function restore(prob::Problem)
+  restorepathcost(prob)
+  restorelinecost(prob)
+end

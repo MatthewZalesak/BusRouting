@@ -123,15 +123,25 @@ function autosolvedeep(prob::Problem, pf::PathFinder, lfs::Array{LineFinder})
   
   i = 100000 # max_iter
   while (i -= 1) >= 0
-    resolve(prob, s)
+    @time resolve(prob, s)
     println("Iteration: ", i, "\t(with objective ", prob.sol.objective, ".)")
     
     if rand() > prob.param.search_weighting # Control order new vars added in.
-      if search_path(pf) || search_line(lfs)
+      sp = search_path(pf)
+      if sp
+        continue
+      end
+      sl = search_line(lfs)
+      if sl
         continue
       end
     else
-      if search_line(lfs) || search_path(pf)
+      sl = search_line(lfs)
+      if sl
+        continue
+      end
+      sp = search_path(pf)
+      if sp
         continue
       end
     end

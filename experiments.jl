@@ -269,5 +269,208 @@ exp15 = quote
   bus_fixedcost = 100.0 / 20
 end
 
-name = :exp9
+exp16 = quote
+  #= Search to measure performance changes as demand count increases. =#
+  #srand(UInt32[0xfca049a7, 0x23ecf9f6, 0xb955181c, 0xea2bfeff])
+  seed = Base.Random.GLOBAL_RNG.seed
+  println("Seed: ", seed)
+  srand(seed)
+  
+  demand_count = 10
+  terminal_count = 10
+  time_resolution = 5.0
+  timelength = 120
+  permile_rh = 2
+  speed = 0.5
+  height = 10.0
+  width = 10.0
+  req_type = :Basic
+  batch_path = 5
+  batch_line = 5
+  bus_capacity = 1
+  bus_fixedcost = 200.0 / 20
+  cycletimes = [6,12]
+  epsilon = 0.0001
+  integer_f = false
+  integer_y = false
+  lambda = 1.0
+  search_weighting = 0.7
+  permile_bus = 1.0 / 10
+end
+
+exp17 = quote
+  eval(exp16)
+  demand_count = 100
+end
+
+exp18 = quote
+  eval(exp16)
+  demand_count = 1000
+end
+
+exp19 = quote
+  eval(exp16)
+  demand_count = 10000
+end
+
+exp20 = quote
+  eval(exp16)
+  demand_count = 100000
+end
+
+exp21 = quote
+  eval(exp17)
+  demand_count = 500000
+end
+
+exp22 = quote
+  eval(exp17)
+  demand_count = 1000000
+end
+
+exp23 = quote
+  #= In search of simplest example of a failed system. =#
+  # A (successful) attempt to find a simple model with breakage.
+  #srand(UInt32[0xd8e187aa, 0xdb2a3d68, 0x2d1201b2, 0x6c982835])
+  #srand(UInt32[0xdb05d9e5, 0xf816e02d, 0xf6748857, 0x394034d6])
+  #srand(UInt32[0xdc96173d, 0x7ada0147, 0x9c9b8789, 0x2caea012])
+  #srand(UInt32[0xb3b3a5e2, 0xecde36bf, 0x84bb0b00, 0x12024fb3])
+  #srand(UInt32[0xf9e186d4, 0x040e977c, 0x843c2496, 0xac0a7a67])
+  #srand(UInt32[0x1086bdae, 0x970dac6f, 0x52f0dd7b, 0xef719e6c])
+  
+  # Breakers!
+  #srand(UInt32[0x407fef14, 0x18c54f01, 0xffd0df45, 0xa0a12a65])
+  srand(UInt32[0x65e850b1, 0xf00eb3a6, 0xa4aa5597, 0x2a28a9b3])
+  #seed = Base.Random.GLOBAL_RNG.seed
+  #println("Seed: ", seed)
+  #srand(seed)
+  demand_count = 1000
+  terminal_count = 3
+  time_resolution = 5.0
+  timelength = 35
+  permile_rh = 2
+  speed = 0.5
+  height = 5.0
+  width = 5.0
+  req_type = :Basic
+  batch_path = 5
+  batch_line = 5
+  bus_capacity = 1
+  bus_fixedcost = 200.0 / 20
+  cycletimes = [3,6]
+  epsilon = 0.0001
+  integer_f = false
+  integer_y = false
+  lambda = 1.0
+  search_weighting = 0.7
+  permile_bus = 1.0 / 10
+end
+
+exp24 = quote
+  seed = Base.Random.GLOBAL_RNG.seed
+  println("Seed: ", seed)
+  #srand(seed)
+  
+  demand_count = 1000
+  terminal_count = 4
+  time_resolution = 5.0
+  timelength = 20
+  permile_rh = 2
+  speed = 0.5
+  height = 2.0
+  width = 2.0
+  req_type = :Basic
+  batch_path = 5
+  batch_line = 5
+  bus_capacity = 1
+  bus_fixedcost = 200.0 / 20
+  cycletimes = [3]
+  epsilon = 0.0001
+  integer_f = false
+  integer_y = false
+  lambda = 1.0
+  search_weighting = 0.7
+  permile_bus = 1.0 / 10
+end
+
+exp25 = quote
+  eval(exp24)
+  bus_fixedcost = 6.0
+end
+
+exp26 = quote
+  eval(exp24)
+  srand(UInt32[0x71f04e95, 0xcb5324d7, 0x9cd2205f, 0xde5f0a77])
+  bus_fixedcost = 6.0
+  demand_count = 100
+end
+
+exp27 = quote
+  #= Simplest failing system found. =#
+  eval(exp24)
+  srand(UInt32[0xb035bf3d, 0x3a5c8ca5, 0xc5d9d90e, 0xb14d2d95])
+  bus_fixedcost = 1.5 # 6.0
+  demand_count = 60 # 70
+end
+
+exp28 = quote
+  #= In search of performance measures, given smaller system size. =#
+  seed = Base.Random.GLOBAL_RNG.seed
+  println("Seed: ", seed)
+  #srand(seed)
+  
+  demand_count = 1000
+  terminal_count = 4 # 5
+  time_resolution = 5.0
+  timelength = 100
+  permile_rh = 2
+  speed = 0.5
+  height = 10.0
+  width = 10.0
+  req_type = :TwoCities #Basic
+  sep_ratio = 2
+  batch_path = 5
+  batch_line = 5
+  bus_capacity = 1
+  bus_fixedcost = 10
+  cycletimes = [6,7,9,12,15]
+  epsilon = 0.0001
+  integer_f = false
+  integer_y = false
+  lambda = 1.0
+  search_weighting = 0.7
+  permile_bus = 1.0 / 10
+end
+
+exp29 = quote
+  #= Large scale test. =#
+  srand(UInt32[0xc2904e44, 0x118d8ef9, 0x11d3fb02, 0xe2f20596])
+  #seed = Base.Random.GLOBAL_RNG.seed
+  #println("Seed: ", seed)
+  #srand(seed)
+  
+  demand_count = 40000
+  terminal_count = 20
+  time_resolution = 5.0
+  timelength = 185
+  permile_rh = 2
+  speed = 0.5
+  height = 10.0
+  width = 10.0
+  req_type = :Basic
+  batch_path = 5
+  batch_line = 5
+  bus_capacity = 1
+  bus_fixedcost = 200.0 / 20
+  cycletimes = [6,12]
+  epsilon = 0.0001
+  integer_f = false
+  integer_y = false
+  lambda = 1.0
+  search_weighting = 0.7
+  permile_bus = 1.0 / 10
+end
+
+name = :exp29
 experiment = eval(name)
+println("Done loading experiments.")
