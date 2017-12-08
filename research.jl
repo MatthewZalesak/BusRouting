@@ -38,6 +38,55 @@ function measure_rounding_performance(prob::Problem, num_iter::Int64)
   return counter
 end
 
+function empirical_rounding_distribution(prob::Problem, num_iter::Int64)
+  counter = 0
+  
+  runlp(prob)
+  lp_y = copy(prob.sol.y)
+  lp_f = copy(prob.sol.f)
+  distribution_int = Dict{Tuple{Array{Float64},Array{Float64},Float64},Int64}()
+  distribution_f   = Dict{Tuple{Array{Float64},Array{Float64},Float64},Int64}()
+  
+  for i = 1:num_iter
+    println("Iteration: ", i, "\t\t\t\t", counter / (i - 1))
+    prob.sol.y = copy(lp_y)
+    prob.sol.f = copy(lp_f)
+    runlp(prob, mod_round)
+    found = false
+    for y in prob.sol.y
+      if y % 1.0 != 0
+        counter += 1
+        found = true
+        break
+      end
+    end
+    if !found
+      for f in prob.sol.f
+        if f % 1.0 != 0
+          counter += 1
+          found = true
+          break
+        end
+      end
+    end
+    key = (prob.sol.y, prob.sol.f, cost(prob)) # (prob.sol.y, prob.sol.f)
+    if found
+      if key in keys(distribution_f)
+        distribution_f[key] += 1
+      else
+        distribution_f[key] = 1
+      end
+    else
+      if key in keys(distribution_int)
+        distribution_int[key] += 1
+      else
+        distribution_int[key] = 1
+      end
+    end
+  end
+  return distribution_int, distribution_f
+end
+
 #= List values of y entries corresponding to each ST pair that are fractional. =#
 function number_carsharable_y(prob::Problem)
   println("A '*' after an entry means it only uses a ride hail.")
@@ -187,6 +236,29 @@ function fractional_st(prob::Problem)
     end
   end
 end
+
+function test_for_meeting(prob)
+  di, df = empirical_rounding_distribution(prob, 100000)
+  ddi = [(y, f, c, v) for ((y, f, c), v) in di]
+  ddf = [(y, f, c, v) for ((y, f, c), v) in df]
+  
+  sort!(ddi, by= x->x[3])
+  sort!(ddf, by= x->x[3])
+  
+  return ddi, ddf
+end
+
+#=
+a = Tuple{Node,Int64, Int64}[]
+for ((n, d), v) in data.demands
+  if v > 0
+    push!(a, (n,d,v))
+  end
+end
+sort!(a, by=x->(x[1].t,x[1].id))
+
+
+=#
 
 #function random_test()
 #  

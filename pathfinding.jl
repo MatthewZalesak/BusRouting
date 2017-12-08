@@ -8,19 +8,16 @@ catch
   type NodeWrapper
     n::Node
     arc_children::Array{NodeWrapper}
-    cw_children::Array{NodeWrapper}
-    follower::Union{Void,NodeWrapper}         # If you stay idle at this location
     tracking::Bool                            # Has this variable been touched?
-    rode_pickup::Bool                         # Can we ride a pickup from here?
     dist_pickup::Float64
     dist_bus::Float64
     dist_dropoff::Float64
-    caller_pickup::Union{Void,NodeWrapper}    # 'caller' fields enable backtracking.
+    caller_pickup::Union{Void,NodeWrapper}
     caller_bus::Union{Void,NodeWrapper}
     caller_dropoff::Union{Void,NodeWrapper}
     
     function NodeWrapper(n::Node)
-      return new(n, NodeWrapper[], NodeWrapper[], nothing, false, false, Inf, Inf,
+      return new(n, NodeWrapper[], false, Inf, Inf,
           Inf, nothing, nothing, nothing)
     end
   end
@@ -31,9 +28,8 @@ pathfinding_init = true
 
 
 function cleanup(a::Array{NodeWrapper})
-  for x = a
+  for x in a
     x.tracking = false
-    x.rode_pickup = false
     x.dist_pickup, x.dist_bus, x.dist_dropoff = Inf, Inf, Inf
     x.caller_pickup, x.caller_bus, x.caller_dropoff = nothing, nothing, nothing
   end
@@ -42,7 +38,6 @@ end
 function cleanup(a::PriorityQueue{NodeWrapper,Float64})
   for x = keys(a)
     x.tracking = false
-    x.rode_pickup = false
     x.dist_pickup, x.dist_bus, x.dist_dropoff = Inf, Inf, Inf
     x.caller_pickup, x.caller_bus, x.caller_dropoff = nothing, nothing, nothing
   end
@@ -62,14 +57,8 @@ type PathFinder
       lookup[n] = nw
     end
     for nw in graph
-      for child in prob.data.arc_children[nw.n]
+      for child in prob.data.arc_children[nw.n] # Probably a complete graph...
         push!(nw.arc_children, lookup[child])
-      end
-      for child in prob.data.cw_children[nw.n]
-        push!(nw.cw_children, lookup[child])
-        if child.id == nw.n.id
-          nw.follower = lookup[child]
-        end
       end
     end
     
@@ -80,34 +69,39 @@ end
 
 
 function unwrap(n::NodeWrapper, pf::PathFinder)
-  pickup = Carway[]
+  pickup = nothing::Union{Void,Arc}
   buses = Arc[]
-  dropoff = nothing::Union{Void,Carway}
+  dropoff = nothing::Union{Void,Arc}
   independentcost = 0
+  taketime = 0
   
   while true
     if n.dist_dropoff < n.dist_pickup && n.dist_dropoff < n.dist_bus
       parent = n.caller_dropoff
-      dropoff = pf.prob.data.carways[(parent.n, n.n)]
+      dropoff = pf.prob.data.arcs[(parent.n, n.n)]
       independentcost += pf.prob.data.ridehailcosts[(parent.n.id, n.n.id)]
+      taketime += pf.prob.data.arcs[(parent.n, n.n)].data.time
       n = parent
     elseif n.dist_bus < n.dist_pickup
       parent = n.caller_bus
       push!(buses, pf.prob.data.arcs[(parent.n, n.n)])
+      taketime += pf.prob.data.arcs[(parent.n, n.n)].data.time
       n = parent
     else
       parent = n.caller_pickup
-      push!(pickup, pf.prob.data.carways[(parent.n, n.n)])
+      pickup = pf.prob.data.arcs[(parent.n, n.n)]
       independentcost += pf.prob.data.ridehailcosts[(parent.n.id, n.n.id)]
+      taketime += pf.prob.data.arcs[(parent.n, n.n)].data.time
       n = parent
+      break
     end
     if n.caller_pickup == nothing && n.caller_bus == nothing && 
         n.caller_dropoff == nothing
       break
     end
   end
-  pathroute = PathRoute(reverse(pickup), reverse(buses), dropoff) 
-  return pathroute, independentcost 
+  pathroute = PathRoute(pickup, reverse(buses), dropoff) 
+  return pathroute, independentcost, taketime
 end
 
 function tracking(n::NodeWrapper, frontier::PriorityQueue{NodeWrapper,Float64},
@@ -120,14 +114,14 @@ function tracking(n::NodeWrapper, frontier::PriorityQueue{NodeWrapper,Float64},
   end
 end
 
-function update_nodewrapper_dropoff(n::NodeWrapper, destination::Int64,
+function update_nodewrapper_dropoff(n::NodeWrapper, destination::NodeWrapper,
     frontier::PriorityQueue{NodeWrapper,Float64}, pf::PathFinder)
-  dropoff = route((n.n, destination), pf.prob.data, pf.prob.param)
+  dropoff = destination.n
   
   if dropoff != n.n
     distance = n.dist_bus
     r = pf.prob.data.ridehailcosts[(n.n.id, dropoff.id)]
-    t = pf.prob.param.lambda * pf.prob.param.time_resolution * (dropoff.t - n.n.t)
+    t = pf.prob.param.lambda * pf.prob.data.arcs[(n.n, dropoff)].data.time
     total = r + t + distance
     
     wrapper = pf.lookup[dropoff]
@@ -143,7 +137,7 @@ function update_nodewrapper_bus(n::NodeWrapper,
     frontier::PriorityQueue{NodeWrapper}, pf::PathFinder)
   distance = min(n.dist_pickup, n.dist_bus)
   for child in n.arc_children
-    t = pf.prob.param.lambda * pf.prob.param.time_resolution * (child.n.t - n.n.t)
+    t = pf.prob.param.lambda * pf.prob.data.arcs[(n.n, child.n)].data.time
     z = pf.prob.data.arcs[(n.n, child.n)].data.dualvalue
     total = t + z + distance
     
@@ -155,29 +149,24 @@ function update_nodewrapper_bus(n::NodeWrapper,
   end
 end
 
+# This only runs once for the origin node.  Changed to reflect this.
 function update_nodewrapper_pickup(n::NodeWrapper,
     frontier::PriorityQueue{NodeWrapper,Float64},  pf::PathFinder)
-  n.rode_pickup && n.follower == nothing && return
-  for child in (n.rode_pickup ? [n.follower] : n.cw_children)
+  for child in n.arc_children
     r = pf.prob.data.ridehailcosts[(n.n.id, child.n.id)]
-    t = pf.prob.param.lambda * pf.prob.param.time_resolution * (child.n.t - n.n.t)
+    t = pf.prob.param.lambda * pf.prob.data.arcs[(n.n, child.n)].data.time
     total = r + t + n.dist_pickup
     
     if total < min(child.dist_pickup, child.dist_bus, child.dist_dropoff)
       child.dist_pickup = total
-      child.rode_pickup = true # n.n.id == child.n.id ? n.rode_pickup : true
       child.caller_pickup = n
       tracking(child, frontier, total)
     end
   end
 end
 
-function terminal_condition(n::NodeWrapper, destination::Int64)
-  return n.n.id == destination && (n.caller_pickup != nothing || 
-      n.caller_bus != nothing || n.caller_dropoff != nothing)
-end
 
-function dijkstra(pf::PathFinder, origin::Node, destination::Int64)
+function dijkstra(pf::PathFinder, origin::Node, destination::Node)
   frontier = PriorityQueue{NodeWrapper,Float64}()
   explored = NodeWrapper[]
   
@@ -185,47 +174,45 @@ function dijkstra(pf::PathFinder, origin::Node, destination::Int64)
   head.tracking = true
   head.dist_pickup = 0
   head.dist_bus = 0
-  enqueue!(frontier, head, 0)
+  
+  update_nodewrapper_pickup(head, frontier, pf)
+  push!(explored, head)
   
   while true
     n = dequeue!(frontier)
     push!(explored, n)
     
-    if terminal_condition(n, destination)
-      pathroute, independentcost = unwrap(n, pf)
-      path = Path(pathroute, independentcost,
-          pf.prob.param.time_resolution * (n.n.t - origin.t), 0)
+    if n.n == destination
+      if n.caller_pickup == nothing && n.caller_bus == nothing &&
+          n.caller_dropoff == nothing
+        throw(ErrorException("Dijkstra failed.  Logic error."))
+      end
+      pathroute, independentcost, taketime = unwrap(n, pf)
+      path = Path(pathroute, independentcost, taketime, 0)
       dualdistance = min(n.dist_pickup, n.dist_bus, n.dist_dropoff)
       cleanup(frontier)
       cleanup(explored)
       return path, dualdistance
     end
     
-    if n.dist_pickup <= n.dist_bus
-      update_nodewrapper_pickup(n, frontier, pf)
-      update_nodewrapper_bus(n, frontier, pf)
-    else
-      update_nodewrapper_bus(n, frontier, pf)
-      update_nodewrapper_dropoff(n, destination, frontier, pf)
-    end
-    
-    #sort!(frontier, by = x->min(x.dist_pickup,x.dist_bus,x.dist_dropoff), rev=true)
+    update_nodewrapper_bus(n, frontier, pf)
+    update_nodewrapper_dropoff(n, pf.lookup[destination], frontier, pf)
   end
 end
 
 function duplicate_check(pf::PathFinder, path::Path)
-  for p in pf.prob.comp.paths
+  for (i, p) in enumerate(pf.prob.comp.paths)
     if path.route == p.route && p != path
-      throw(ErrorException("This path was a repeat."))
+      throw(ErrorException("This path was a repeat. (" * string(i) * ")"))
     end
   end
 end
 
-function apply_path(pf::PathFinder, path::Path)
-  o, d = od(path)
+function apply_path(pf::PathFinder, path::Path, o, d)
+  # o, d = od(path)
   path.index = length(pf.prob.comp.paths) + 1
   push!(pf.prob.comp.paths, path)
-  push!(pf.prob.comp.ST[(o, d.id)], path.index)
+  push!(pf.prob.comp.ST[(o, d)], path.index)
   
   for arc in path.route.buses
     push!(pf.prob.comp.lookup_paths[arc], path.index)
@@ -242,7 +229,7 @@ function undo_path(prob::Problem)
   o, d = od(path)
   
   pop!(prob.comp.pathcosts)
-  pop!(prob.comp.ST[(o, d.id)])
+  pop!(prob.comp.ST[(o, d)])
   for arc in path.route.buses
     pop!(prob.comp.lookup_paths[arc])
   end
@@ -255,22 +242,24 @@ end
 function search_path(pf::PathFinder, modify::Bool)
   count = 0 # This is only used as a statistic to display to the user.
   
-  paths = Tuple{Path, Float64}[]
+  paths = Tuple{Path, Float64, Node, Node}[]
   for (x, (o, d)) in zip(pf.prob.sol.dualdemand, keys(pf.prob.data.demands))
     pf.prob.data.demands[(o, d)] > 0 || continue
     path, duallength = dijkstra(pf, o, d)
     excess = x - duallength
     if excess > pf.prob.param.epsilon
       count += 1
-      push!(paths, (path, excess))
+      push!(paths, (path, excess, o, d))
       sort!(paths, by = p->p[2], rev=true)
       length(paths) > prob.param.batch_path ? pop!(paths) : nothing
     end
   end
   
   if modify
-    for (path, excess) in paths
-      apply_path(pf, path)
+    for (path, excess, o, d) in paths
+      println("Adding a path.")
+      apply_path(pf, path, o, d)
+      println("length", length(pf.prob.comp.paths))
     end
   end
   

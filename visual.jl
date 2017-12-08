@@ -6,28 +6,24 @@ using Plots
 #= Special functions for visualizing variables. =#
 
 function show(io::IO, n::Node)
-  print(io, "Node(L", n.id, ", t", n.t, ")")
+  print(io, "Node(L", n.id, ")")
 end
 
 function show(io::IO, ad::ArcData)
-  print(io, "ArcData(", ad.time, ", ", round(ad.dualvalue, 6), ")")
+  print(io, "ArcData(", round(ad.time, 4), ", ", round(ad.dualvalue, 6), ")")
 end
 
 function show(io::IO, line::Line)
   print(io, "Line(")
   show(io, line.line)
   print(io, ", cost => ", line.cost)
-  print(io, ", cyclelength => ", line.cyclelength)
   print(io, ", ID => ", line.index, ")")
 end
 
 function show(io::IO, pr::PathRoute)
-  print(io, "PathRoute(pickups=> ")
-  for p in pr.pickup
-    show(io, p)
-    print(io, ", ")
-  end
-  print(io, "buses=> ")
+  print(io, "PathRoute(pickup=> ")
+  print(io, pr.pickup)
+  print(io, ", buses=> ")
   for b in pr.buses
     show(io, b)
     print(io, ", ")
@@ -42,7 +38,7 @@ end
 function show(io::IO, p::Path)
   print(io, "Path(ID ", p.index, ", ")
   show(io, p.route)
-  print(io, ", duration: ", p.taketime, ")")
+  print(io, ", duration: ", round(p.taketime, 4), ")")
 end
 
 function show(io::IO, nw::NodeWrapper)
@@ -56,24 +52,18 @@ function show(io::IO, pf::PathFinder)
   print(io, "PathFinder(graph size => ", length(pf.graph), ")")
 end
 
-function show(io::IO, mnw::MultiNodeWrapper)
-  print(io, "MultiNodeWrapper(base => ", mnw.n)
-  print(io, ", distance => ", mnw.distance)
-  if mnw.caller != nothing
-    print(io, ", caller <MultiNodeWrapper>")
-  else
-    print(io, ", caller <Void>")
-  end
-  print(io, ", children => (", length(mnw.children), "))")
+function show(io::IO, cnw::ColorNodeWrapper)
+  print(io, "ColorNodeWrapper(base => ", cnw.n)
+  print(io, ", colors => ", map(x -> sum(map(y -> y[1], values(x))), cnw.colors), "))")
 end
 
-function show(io::IO, ma::MultiArc)
-  print(io, "MultiArc(<o>, <d>, dualvalue => ", round(ma.dualvalue, 10))
-  print(io, ", arcs => (", length(ma.arcs), "))")
+function show(io::IO, ca::ColorArc)
+  print(io, "ColorArc(<o>, <d>, color => ", ca.color)
+  print(io, ", dualvalue => ", round(ca.arc.dualvalue, 10), "))")
 end
 
 function show(io::IO, lf::LineFinder)
-  print(io, "LineFinder(cycletime => ", lf.cycletime, ")")
+  print(io, "LineFinder(limit => ", lf.limit, ")")
 end
 
 
@@ -116,23 +106,40 @@ function draw_path(path::Path)
   end
 end
 
+function draw_ridehail(prob::Problem)
+  arcs = Dict{Arc,Void}()
+  for (y, path) in zip(prob.sol.y, prob.comp.paths)
+    if y > 0
+      if path.route.pickup != nothing
+        arcs[path.route.pickup] = nothing
+      end
+      if path.route.dropoff != nothing
+        arcs[path.route.dropoff] = nothing
+      end
+    end
+  end
+  xs = Float64[]
+  ys = Float64[]
+  for a in keys(arcs)
+    push!(xs, a.o.x) ; push!(xs, a.d.x) ; push!(xs, Inf)
+    push!(ys, a.o.y) ; push!(ys, a.d.y) ; push!(ys, Inf)
+  end
+  plot!(xs, ys, label="RideHails", linewidth = 2)
+end
+
 function draw_demand(prob::Problem)
   # We will flatten the demand over all time to a 2D-plane.
   flat_demand = Dict{Tuple{Int64,Int64},Int64}()
-  for (i, j) in zip(1:prob.param.terminal_count, 1:prob.param.terminal_count)
-    flat_demand[(i, j)] = 0
-  end
-  
-  for ((origin, destid), value) in prob.data.demands
-    flat_demand[origin.id, destid] += value
+  for i = 1:prob.param.terminal_count
+    for j = 1:prob.param.terminal_count
+      flat_demand[(i, j)] = 0
+    end
   end
   
   demandx = Float64[]
   demandy = Float64[]
-  for ((oid, did), value) in flat_demand
+  for ((origin, destination), value) in prob.data.demands
     if value > 0
-      origin = prob.data.locations[oid][1]
-      destination = prob.data.locations[did][1]
       push!(demandx, origin.x)
       push!(demandy, origin.y)
       push!(demandx, destination.x)
@@ -153,6 +160,15 @@ function visual_line(prob::Problem, index::Int64)
   gui()
 end
 
+function visual_line(prob::Problem, index::Int64, count::Int64)
+  plot()
+  for i = 1:min(count, length(prob.comp.lines[index].line))
+    l = prob.comp.lines[index].line[i]
+    plot!([l.o.x, l.d.x], [l.o.y, l.d.y], label=string(i), linewidth=1.0)
+  end
+  gui()
+end
+
 function visual_path(prob::Problem, index::Int64)
   plot()
   draw_terminals(prob)
@@ -169,5 +185,6 @@ function visual_basic(prob::Problem)
       draw_line(prob.comp.lines[i])
     end
   end
+  draw_ridehail(prob)
   gui()
 end

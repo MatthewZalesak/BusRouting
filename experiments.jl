@@ -471,6 +471,66 @@ exp29 = quote
   permile_bus = 1.0 / 10
 end
 
-name = :exp29
+exp30 = quote
+  #= Another simple failing system. =#
+  eval(exp24)
+  # srand(UInt32[0xb035bf3d, 0x3a5c8ca5, 0xc5d9d90e, 0xb14d2d95])
+  demand_count = 25
+  bus_fixedcost = 4.5 # 6.0
+  demand_count = 60 # 70
+  timelength = 15
+  cycletimes = [2]
+end
+
+exp500 = quote
+  seed = Base.Random.GLOBAL_RNG.seed
+  seed = UInt32[0x72001b00, 0x7974a6d1, 0xf5b82741, 0xd94204ef]
+  println("Seed: ", seed)
+  srand(seed)
+  
+  demand_count = 1000
+  terminal_count = 15
+  # time_resolution = 5.0
+  # timelength = 20
+  permile_rh = 2
+  speed = 0.5
+  height = 2.0
+  width = 2.0
+  req_type = :Basic
+  batch_path = 1
+  batch_line = 1
+  bus_capacity = 20
+  bus_fixedcost = 1.0
+  cycletimes = [4]
+  epsilon = 0.0001
+  integer_f = false
+  integer_y = false
+  lambda = 1.0
+  search_weighting = 0.7
+  permile_bus = 0.5
+end
+
+exp501 = quote
+  eval(exp500)
+  terminal_count = 8
+  sep_ratio = 2
+  req_type = :TwoCities
+  bus_fixedcost = 5.0
+end
+
+#=
+for f in [1.0, 5.0, 10, 20, 30, 50, 70, 100, 130, 180, 240, 300]
+  prob.param.bus_fixedcost = f
+  prob = Problem(data, param)
+  autosolve(prob)
+  visual_basic(prob)
+end
+=#
+
+exp502 = quote
+  eval(exp500)
+  terminal_count = 30
+end
+
+name = :exp501
 experiment = eval(name)
-println("Done loading experiments.")
