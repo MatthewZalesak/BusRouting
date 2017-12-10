@@ -21,7 +21,7 @@ immutable Arc
   data::ArcData
   
   function Arc(o::Node, d::Node, speed::Float64)
-    ad = ArcData(distance(o, d), distance(o, d) / speed, 0)
+    ad = ArcData(distance(o, d) / speed, distance(o, d), 0)
     return new(o, d, ad)
   end
 end
@@ -71,9 +71,9 @@ type Line
 end
 
 immutable PathRoute
-  pickup::Union{Void,Arc}
+  pickup::Union{Void,Tuple{Node,Node}}
   buses::Array{Arc}
-  dropoff::Union{Void,Arc}
+  dropoff::Union{Void,Tuple{Node,Node}}
 end
 
 
@@ -118,9 +118,9 @@ type Computed
     end
     for ((origin, destination), value) in data.demands
       if value > 0
-        pathroute = PathRoute(data.arcs[(origin, destination)], Arc[], nothing)
+        pathroute = PathRoute((origin, destination), Arc[], nothing)
         independentcost = data.ridehailcosts[(origin.id, destination.id)]
-        taketime = data.arcs[(origin, destination)].data.time
+        taketime = data.distances[(origin.id, destination.id)] / param.speed
         index = length(paths) + 1
         path = Path(pathroute, independentcost, taketime, index)
         

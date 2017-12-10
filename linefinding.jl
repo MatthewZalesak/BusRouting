@@ -20,7 +20,8 @@ type ColorArc
   color::Int64
   o::ColorNodeWrapper
   d::ColorNodeWrapper
-  arc::Arc
+  arc1::Arc
+  arc2::Arc
 end
 
 
@@ -49,7 +50,8 @@ type LineFinder
     for ((o, d), a) in prob.data.arcs
       if o.id <= d.id
         o_node, d_node = lookup[o], lookup[d]
-        carc = ColorArc(0, o_node, d_node, a)
+        a2 = prob.data.arcs[(d, o)]
+        carc = ColorArc(0, o_node, d_node, a, a2)
         color_arcs[(o_node, d_node)] = carc
         color_arcs[(d_node, o_node)] = carc
       end
@@ -79,20 +81,24 @@ end
 function process_node(node::ColorNodeWrapper, iteration::Int64, lf::LineFinder)
   i = iteration
   if node.iteration == iteration - 1
-    for cnw in node.children
+    for cnw in node.children                   # For each location we can go to
       color = lf.color_arcs[(node, cnw)].color
       
-      feasible_choices = iteration > 1 ? 
+      feasible_choices = iteration > 1 ?    # Each color combo we can come from
           [(x, stuff) for (x, stuff) in node.colors[i - 1] if !(color in x)] : 
           [(Int64[], (0, cnw, -1))]
       for (colorful, (distance, caller, last_color)) in feasible_choices
-        combo = sort!(vcat(colorful, color))
-        if !(combo in keys(cnw.colors[i])) || distance > cnw.colors[i][combo]
-          a = lf.prob.data.arcs[(node.n, cnw.n)]
-          dual_distance = a.data.dualvalue * lf.prob.param.bus_capacity
-          milage_cost = a.data.distance * lf.prob.param.permile_bus
-          distance += (dual_distance - milage_cost)
-          cnw.colors[i][combo] = (distance, node, color)
+        new_combo = sort!(vcat(colorful, color))
+        a1 = lf.prob.data.arcs[(node.n, cnw.n)]
+        a2 = lf.prob.data.arcs[(cnw.n, node.n)]
+        dual_distance = lf.prob.param.bus_capacity *
+            (a1.data.dualvalue + a2.data.dualvalue)
+        milage_cost = 2 * a1.data.distance * lf.prob.param.permile_bus
+        distance += (dual_distance - milage_cost)
+        
+        if !( new_combo in keys(cnw.colors[i]) ) ||
+            distance > cnw.colors[i][new_combo][1]
+          cnw.colors[i][new_combo] = (distance, node, color)
           cnw.iteration = i
         end
       end
@@ -133,8 +139,10 @@ function find_line(lf::LineFinder)
   line_arcs = Arc[]
   line_length = 0
   for (o, d) in zip(line_nodes[1:end - 1], line_nodes[2:end])
-    a = lf.prob.data.arcs[(o.n, d.n)]
-    push!(line_arcs, a) ; line_length += a.data.distance
+    a1 = lf.prob.data.arcs[(o.n, d.n)]
+    a2 = lf.prob.data.arcs[(d.n, o.n)]
+    push!(line_arcs, a1) ; line_length += a1.data.distance
+    push!(line_arcs, a2) ; line_length += a2.data.distance
   end
   
   cost = lf.prob.param.bus_fixedcost + lf.prob.param.permile_bus * line_length

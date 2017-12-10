@@ -107,7 +107,7 @@ function draw_path(path::Path)
 end
 
 function draw_ridehail(prob::Problem)
-  arcs = Dict{Arc,Void}()
+  arcs = Dict{Tuple{Node,Node},Void}()
   for (y, path) in zip(prob.sol.y, prob.comp.paths)
     if y > 0
       if path.route.pickup != nothing
@@ -120,9 +120,9 @@ function draw_ridehail(prob::Problem)
   end
   xs = Float64[]
   ys = Float64[]
-  for a in keys(arcs)
-    push!(xs, a.o.x) ; push!(xs, a.d.x) ; push!(xs, Inf)
-    push!(ys, a.o.y) ; push!(ys, a.d.y) ; push!(ys, Inf)
+  for (o, d) in keys(arcs)
+    push!(xs, o.x) ; push!(xs, d.x) ; push!(xs, Inf)
+    push!(ys, o.y) ; push!(ys, d.y) ; push!(ys, Inf)
   end
   plot!(xs, ys, label="RideHails", linewidth = 2)
 end
@@ -176,7 +176,7 @@ function visual_path(prob::Problem, index::Int64)
   gui()
 end
 
-function visual_basic(prob::Problem)
+function visual_basic(prob::Problem, show_ridehail::Bool)
   plot()
   draw_terminals(prob)
   draw_demand(prob)
@@ -185,6 +185,10 @@ function visual_basic(prob::Problem)
       draw_line(prob.comp.lines[i])
     end
   end
-  draw_ridehail(prob)
+  show_ridehail && draw_ridehail(prob)
   gui()
+end
+
+function visual_basic(prob::Problem)
+  return visual_basic(prob, true)
 end

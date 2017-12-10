@@ -39,7 +39,7 @@ else
 end
 
 println("Generating synthetic data...")
-@time data = synthetic_uniform(req)
+@time data = synthetic_uniform(req, probability)
 
 println("Generating parameter object...")
 param = Parameter(batch_path, batch_line, bus_capacity, bus_fixedcost, cycletimes, epsilon, integer_f, integer_y, lambda, search_weighting, real_terminal_count, permile_bus, speed)

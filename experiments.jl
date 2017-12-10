@@ -532,5 +532,10 @@ exp502 = quote
   terminal_count = 30
 end
 
-name = :exp501
+exp503 = quote
+  eval(exp500)
+  terminal_count = 4
+end
+
+name = :exp500
 experiment = eval(name)
