@@ -176,12 +176,20 @@ function visual_path(prob::Problem, index::Int64)
   gui()
 end
 
+function visual_ridehail(prob::Problem)
+  plot()
+  draw_terminals(prob)
+  draw_demand(prob)
+  draw_ridehail(prob)
+  gui()
+end
+
 function visual_basic(prob::Problem, show_ridehail::Bool)
   plot()
   draw_terminals(prob)
   draw_demand(prob)
   for (i, f_l) in enumerate(prob.sol.f)
-    if f_l > 0.9
+    if f_l > 0 # 0.9
       draw_line(prob.comp.lines[i])
     end
   end
@@ -190,5 +198,5 @@ function visual_basic(prob::Problem, show_ridehail::Bool)
 end
 
 function visual_basic(prob::Problem)
-  return visual_basic(prob, true)
+  return visual_basic(prob, false)
 end

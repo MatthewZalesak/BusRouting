@@ -259,9 +259,9 @@ function search_path(pf::PathFinder, modify::Bool)
   
   if modify
     for (path, excess, o, d, dua) in paths
-      println("Adding a path.", " excess ", excess)
-      println("Length", length(pf.prob.comp.paths), " excess ", excess, " dual ", dua)
-      println("Origin: ", o, " Destination: ", d)
+      #println("Adding a path.", " excess ", excess)
+      #println("Length", length(pf.prob.comp.paths), " excess ", excess, " dual ", dua)
+      #println("Origin: ", o, " Destination: ", d)
       apply_path(pf, path, o, d)
     end
   end

@@ -1,6 +1,6 @@
 # data.jl
 
-import Base.==, Base.display, Base.show
+import Base.==, Base.display, Base.length, Base.show
 
 
 immutable Node
@@ -179,6 +179,10 @@ function ==(a::PathRoute, b::PathRoute)
     i == j || return false
   end
   return true
+end
+
+function length(line::Line)
+  return Int64(length(line.line) / 2)
 end
 
 function od(pr::PathRoute)

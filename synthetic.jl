@@ -86,7 +86,7 @@ end
 
 
 #TODO Has not been edited to match new format.
-function synthetic_uniform(req::RequestTwoCities)
+function synthetic_uniform(req::RequestTwoCities, prob::Float64)
   println("\t\tBuilding using seed ", Base.Random.GLOBAL_RNG.seed)
   @assert req.terminal_count > 1
   
@@ -134,14 +134,16 @@ function synthetic_uniform(req::RequestTwoCities)
   # Create arcs on the graph.
   for i = 1:length(data.terminals)
     for j = i + 1:length(data.terminals)
-      origin = data.terminals[i]
-      destination = data.terminals[j]
-      push!(data.arc_children[origin], destination)
-      push!(data.arc_children[destination], origin)
-      arc = Arc(origin, destination, req.speed)
-      data.arcs[(origin, destination)] = arc
-      arc = Arc(destination, origin, req.speed)
-      data.arcs[(destination, origin)] = arc
+      if rand() < prob
+        origin = data.terminals[i]
+        destination = data.terminals[j]
+        push!(data.arc_children[origin], destination)
+        push!(data.arc_children[destination], origin)
+        arc = Arc(origin, destination, req.speed)
+        data.arcs[(origin, destination)] = arc
+        arc = Arc(destination, origin, req.speed)
+        data.arcs[(destination, origin)] = arc
+      end
     end
   end
   

@@ -72,7 +72,7 @@ end
 
 
 function random_color(lf::LineFinder)
-  for ca in lf.color_arcs
+  for ca in values(lf.color_arcs)
     ca.color = rand(1:lf.limit)
   end
 end
@@ -153,6 +153,7 @@ end
 
 function longest_path_dp(lf::LineFinder)
   cleanup(lf)
+  random_color(lf)
   
   for i = 1:lf.limit
     for cnw in lf.graph
