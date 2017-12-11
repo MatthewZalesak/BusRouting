@@ -87,7 +87,7 @@ end
 
 #TODO Has not been edited to match new format.
 function synthetic_uniform(req::RequestTwoCities, prob::Float64)
-  println("\t\tBuilding using seed ", Base.Random.GLOBAL_RNG.seed)
+  println("     Building using seed ", Base.Random.GLOBAL_RNG.seed)
   @assert req.terminal_count > 1
   
   locations_city = rand(2, req.terminal_count) .* [req.width; req.height]

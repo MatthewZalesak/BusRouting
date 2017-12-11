@@ -12,7 +12,7 @@ catch
   include("solver.jl") ; println("Done loading solver.")
   include("visual.jl") ; println("Done loading visual.")
   include("synthetic.jl") ; println("Done loading synthetic.")
-  include("research.jl") ; println("Done loading research.")
+  # include("research.jl") ; println("Done loading research.")
   include("ridehail.jl") ; println("Done loading ridehail.")
   
 end

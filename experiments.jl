@@ -564,5 +564,5 @@ exp506 = quote
   lambda = 0.1
 end
 
-name = :exp506
+name = :exp505
 experiment = eval(name)
