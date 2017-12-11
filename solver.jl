@@ -108,3 +108,10 @@ function autosolve(prob::Problem)
   
   return # pathfinder, linefinder
 end
+
+function autoint(prob::Problem)
+  save_f, save_y = prob.param.integer_f, prob.param.integer_y
+  prob.param.integer_f, prob.param.integer_y = true, true
+  autosolve(prob)
+  prob.param.integer_f, prob.param.integer_y = save_f, save_y
+end

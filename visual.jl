@@ -127,6 +127,23 @@ function draw_ridehail(prob::Problem)
   plot!(xs, ys, label="RideHails", linewidth = 2)
 end
 
+function draw_roads(prob::Problem)
+  arcs = unique(values(prob.data.arcs))
+  xs = Float64[]
+  ys = Float64[]
+  for a in arcs
+    origin = a.o
+    destination = a.d
+    push!(xs, origin.x)
+    push!(ys, origin.y)
+    push!(xs, destination.x)
+    push!(ys, destination.y)
+    push!(xs, Inf)
+    push!(ys, Inf)
+  end
+  plot!(xs, ys, label="Roads", width=1.0)
+end
+
 function draw_demand(prob::Problem)
   # We will flatten the demand over all time to a 2D-plane.
   flat_demand = Dict{Tuple{Int64,Int64},Int64}()
@@ -151,6 +168,7 @@ function draw_demand(prob::Problem)
   plot!(demandx, demandy, label="Demand")
 end
 
+
 #= These functions are packaged visualization functions. =#
 
 function visual_line(prob::Problem, index::Int64)
@@ -169,6 +187,21 @@ function visual_line(prob::Problem, index::Int64, count::Int64)
   gui()
 end
 
+function visual_line(prob::Problem)
+  for (i, lval) in enumerate(prob.sol.f)
+    if lval > 0
+      visual_line(prob, i)
+    end
+  end
+end
+
+function visual_roads(prob::Problem)
+  plot()
+  draw_terminals(prob)
+  draw_roads(prob)
+  gui()
+end
+
 function visual_path(prob::Problem, index::Int64)
   plot()
   draw_terminals(prob)
@@ -179,7 +212,7 @@ end
 function visual_ridehail(prob::Problem)
   plot()
   draw_terminals(prob)
-  draw_demand(prob)
+  draw_roads(prob)
   draw_ridehail(prob)
   gui()
 end
@@ -187,7 +220,7 @@ end
 function visual_basic(prob::Problem, show_ridehail::Bool)
   plot()
   draw_terminals(prob)
-  draw_demand(prob)
+  draw_roads(prob)
   for (i, f_l) in enumerate(prob.sol.f)
     if f_l > 0 # 0.9
       draw_line(prob.comp.lines[i])
@@ -199,4 +232,10 @@ end
 
 function visual_basic(prob::Problem)
   return visual_basic(prob, false)
+end
+
+function visual(prob::Problem)
+  visual_basic(prob)
+  visual_roads(prob)
+  visual_ridehail(prob)
 end

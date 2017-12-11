@@ -7,30 +7,30 @@ function state_solution(prob::Problem)
   # Display useful information to the user.
   num_fractional_y = 0
   largest_den = 1
-  for (i, y) in enumerate(prob.sol.y)
-    if round(y, 10) % 1.0 != 0
-      num_fractional_y += 1
-      largest_den = max(largest_den, Rational(round(y, 10)).den)
-      warn("Fractional y variable: ", round(y, 6), " at ", i, "\t\t(cost ",
-          round(prob.comp.pathcosts[i], 6), ")")
-    end
-  end
-  num_fractional_f = 0
-  for (i, f) in enumerate(prob.sol.f)
-    if prob.param.bus_capacity * round(f, 10) % 1 != 0
-      num_fractional_f += 1
-      warn("Fractional f variable: ", round(f, 6), " at ", i, "\t\t(cost ",
-          round(prob.comp.linecosts[i], 6), ")")
-    end
-  end
+  #for (i, y) in enumerate(prob.sol.y)
+  #  if round(y, 10) % 1.0 != 0
+  #    num_fractional_y += 1
+  #    largest_den = max(largest_den, Rational(round(y, 10)).den)
+  #    warn("Fractional y variable: ", round(y, 6), " at ", i, "\t\t(cost ",
+  #        round(prob.comp.pathcosts[i], 6), ")")
+  #  end
+  #end
+  #num_fractional_f = 0
+  #for (i, f) in enumerate(prob.sol.f)
+  #  if prob.param.bus_capacity * round(f, 10) % 1 != 0
+  #    num_fractional_f += 1
+  #    warn("Fractional f variable: ", round(f, 6), " at ", i, "\t\t(cost ",
+  #        round(prob.comp.linecosts[i], 6), ")")
+  #  end
+  #end
   
-  if num_fractional_y > 0
-    print("NOTE: There were ", num_fractional_y, " fractional y variables.  ")
-    println("Largest denominator: ", largest_den)
-  end
-  if num_fractional_f > 0
-    println("NOTE: There were ", num_fractional_f, " fractional capacity f variables.")
-  end
+  #if num_fractional_y > 0
+  #  print("NOTE: There were ", num_fractional_y, " fractional y variables.  ")
+  #  println("Largest denominator: ", largest_den)
+  #end
+  #if num_fractional_f > 0
+  #  println("NOTE: There were ", num_fractional_f, " fractional capacity f variables.")
+  #end
   obj = prob.sol.objective
   println("Complete!  The problem is solved with objective ", obj, "!")
   print("Number of paths: ", length(prob.comp.paths))

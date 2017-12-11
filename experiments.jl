@@ -512,7 +512,7 @@ end
 
 exp501 = quote
   eval(exp500)
-  terminal_count = 8
+  terminal_count = 15 # 8
   sep_ratio = 2
   req_type = :TwoCities
   bus_fixedcost = 100.0 # 5.0
@@ -550,5 +550,19 @@ exp504 = quote
   permile_rh = 2.0
 end
 
-name = :exp501
+exp505 = quote
+  eval(exp500)
+  permile_rh = 2.0
+  terminal_count = 20
+  permile_bus = 1.3
+  bus_fixedcost = 100.0
+end
+
+exp506 = quote
+  eval(exp501)
+  cycletimes = [3]
+  lambda = 0.1
+end
+
+name = :exp506
 experiment = eval(name)

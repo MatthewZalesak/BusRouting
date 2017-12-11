@@ -23,7 +23,6 @@ function synthetic_uniform(req::Request, prob::Float64)
     term = Node(locations[1, i], locations[2, i], i)
     push!(data.terminals, term)
     data.arc_children[term] = Node[]
-    # data.arc_parents[term] = Node[]
   end
   
   populate_distances(data)
@@ -47,7 +46,8 @@ function synthetic_uniform(req::Request, prob::Float64)
   # Create arcs on the graph.
   for i = 1:req.terminal_count
     for j = i + 1:req.terminal_count
-      if rand() < prob
+      if data.distances[(i,j)] < 0.7 # rand() < prob
+          
         origin = data.terminals[i]
         destination = data.terminals[j]
         push!(data.arc_children[origin], destination)
@@ -134,7 +134,9 @@ function synthetic_uniform(req::RequestTwoCities, prob::Float64)
   # Create arcs on the graph.
   for i = 1:length(data.terminals)
     for j = i + 1:length(data.terminals)
-      if rand() < prob
+      if data.distances[(i,j)] < 0.7 ||
+          (data.terminals[i].x < 0 && data.terminals[j].x >= 0 && rand() < 0.05) ||
+          (data.terminals[i].x * data.terminals[j].x > 0 && rand() < 0.3)
         origin = data.terminals[i]
         destination = data.terminals[j]
         push!(data.arc_children[origin], destination)

@@ -57,9 +57,11 @@ type Parameter
   integer_f::Bool
   integer_y::Bool
   lambda::Float64
+  ridepricing_descent::Float64
   search_weighting::Float64
   terminal_count::Int64
   permile_bus::Float64
+  permile_rh::Float64
   speed::Float64
 end
 
@@ -170,6 +172,29 @@ function distance(a::Node, b::Node)
   return sqrt((a.x - b.x)^2 + (a.y - b.y)^2)
 end
 
+function dualvalue(prob::Problem, path::Path)
+  d = 0
+  if path.route.pickup != nothing
+    d += prob.param.lambda * distance(path.route.pickup[1], path.route.pickup[2]) /
+        prob.param.speed
+  end
+  if path.route.dropoff != nothing
+    d += prob.param.lambda * distance(path.route.dropoff[1], path.route.dropoff[2]) /
+        prob.param.speed
+  end
+  for b in path.route.buses
+    d += prob.param.lambda * distance(b.o, b.d) / prob.param.speed
+  end
+  
+  println("Distance by time - ", d)
+  
+  for b in path.route.buses
+    d += b.data.dualvalue
+  end
+  println("Final dual - ", d)
+  d
+end
+
 function ==(a::PathRoute, b::PathRoute)
   if a.dropoff != b.dropoff || a.pickup != b.pickup ||
       length(a.buses) != length(b.buses)
@@ -186,24 +211,20 @@ function length(line::Line)
 end
 
 function od(pr::PathRoute)
-  origin = nothing
+  origin = nothing::Union{Void,Node}
   if pr.pickup != nothing
-    if pr.pickup.d == pr.buses[1].o || pr.pickup.d == pr.buses[1].d
-      origin = pr.pickup.o
-    else
-      origin = pr.pickup.d
-    end
+    origin = pr.pickup[1]
   else
-    origin # TODO
+    origin = pr.buses[1].o
   end
-  origin = (pr.pickup != nothing) ? pr.pickup.o : pr.buses[1].o
+  
   destination = nothing::Union{Void,Node}
   if pr.dropoff != nothing
-    destination = pr.dropoff.d
+    destination = pr.dropoff[2]
   elseif length(pr.buses) > 0
     destination = pr.buses[end].d
   else
-    destination = pr.pickup[end].d
+    destination = pr.pickup[2]
   end
   return origin, destination
 end
@@ -216,6 +237,40 @@ function populate_distances(data::Data)
   end
 end
 
+function reduce_size(prob::Problem)
+  #to_remove = Int64[]
+  #for (i, x) in enumerate(prob.sol.y)
+  #  if x == 0
+  #    push!(to_remove, i)
+  #  end
+  #end
+  #for i in reverse(to_remove)
+  #  deleteat!(prob.comp.paths, i)
+  #  deleteat!(prob.comp.pathcosts, i)
+  #end
+
+  to_remove = Int64[]
+  for (i, x) in enumerate(prob.sol.f)
+    if x == 0
+      push!(to_remove, i)
+    end
+  end
+  for i in reverse(to_remove)
+    deleteat!(prob.comp.lines, i)
+    deleteat!(prob.comp.linecosts, i)
+  end
+
+  #for (i, p) in enumerate(prob.comp.paths)
+  #  p.index = i
+  #end
+
+  for (i, l) in enumerate(prob.comp.lines)
+    l.index = i
+  end
+  
+  restore_lookups(prob)
+end
+
 function restorepathcost(prob::Problem)
   for (i, p) in enumerate(prob.comp.paths)
     prob.comp.pathcosts[i] = cost(p, prob)
@@ -225,6 +280,36 @@ end
 function restorelinecost(prob::Problem)
   for (i, l) in enumerate(prob.comp.lines)
     prob.comp.linecosts[i] = l.cost
+  end
+end
+
+function restore_lookups(prob)
+  prob.comp.lookup_paths = Dict{Arc,Array{Int64}}()
+  prob.comp.lookup_lines = Dict{Arc,Array{Int64}}()
+  prob.comp.ST = Dict{Tuple{Node,Node},Array{Int64}}()
+  
+  for a in values(prob.data.arcs)
+    prob.comp.lookup_paths[a] = Int64[]
+    prob.comp.lookup_lines[a] = Int64[]
+  end
+  
+  for (o, d) in keys(prob.data.demands)
+    prob.comp.ST[(o,d)] = Int64[]
+  end
+  
+  for p in prob.comp.paths
+    for a in p.route.buses
+      push!(prob.comp.lookup_paths[a], p.index)
+    end
+    
+    (o, d) = od(p)
+    push!(prob.comp.ST[(o, d)], p.index)
+  end
+  
+  for l in prob.comp.lines
+    for a in l.line
+      push!(prob.comp.lookup_lines[a], l.index)
+    end
   end
 end
 

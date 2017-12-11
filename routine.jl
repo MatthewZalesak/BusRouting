@@ -13,7 +13,11 @@ catch
   include("visual.jl") ; println("Done loading visual.")
   include("synthetic.jl") ; println("Done loading synthetic.")
   include("research.jl") ; println("Done loading research.")
+  include("ridehail.jl") ; println("Done loading ridehail.")
+  
 end
+probability = 1.0
+ridepricing_descent = 0.0001
 skipload = true
 
 # This loads problem settings.  Executes "experiment" defined in "experiments.jl".
@@ -42,7 +46,7 @@ println("Generating synthetic data...")
 @time data = synthetic_uniform(req, probability)
 
 println("Generating parameter object...")
-param = Parameter(batch_path, batch_line, bus_capacity, bus_fixedcost, cycletimes, epsilon, integer_f, integer_y, lambda, search_weighting, real_terminal_count, permile_bus, speed)
+param = Parameter(batch_path, batch_line, bus_capacity, bus_fixedcost, cycletimes, epsilon, integer_f, integer_y, lambda, ridepricing_descent, search_weighting, real_terminal_count, permile_bus, permile_rh, speed)
 
 println("Generating problem statement...")
 @time prob = Problem(data, param)

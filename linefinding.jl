@@ -196,7 +196,7 @@ function search_line(lf::LineFinder)
   line, dual_value = longest_path_dp(lf)
   if dual_value > lf.prob.param.bus_fixedcost + lf.prob.param.epsilon
     apply_line(line, lf)
-    println("Line length: ", length(line.line), " Excess: ", dual_value - bus_fixedcost)
+    # println("Line length: ", length(line.line), " Excess: ", dual_value - bus_fixedcost)
     return true
   else
     return false

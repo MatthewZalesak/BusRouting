@@ -155,7 +155,7 @@ function update_nodewrapper_pickup(n::NodeWrapper,
     frontier::PriorityQueue{NodeWrapper,Float64},  pf::PathFinder)
   for child in [x for x in pf.graph if x != n]
     r = pf.prob.data.ridehailcosts[(n.n.id, child.n.id)]
-    t = pf.prob.param.lambda * pf.prob.data.distances[(n.n.id, child.n.id)] / pf.prob.param.speed #prob.data.arcs[(n.n, child.n)].data.time
+    t = pf.prob.param.lambda * pf.prob.data.distances[(n.n.id, child.n.id)] / pf.prob.param.speed
     total = r + t + n.dist_pickup
     
     if total < min(child.dist_pickup, child.dist_bus, child.dist_dropoff)
@@ -168,6 +168,7 @@ end
 
 
 function dijkstra(pf::PathFinder, origin::Node, destination::Node)
+  # println("Fresh")
   frontier = PriorityQueue{NodeWrapper,Float64}()
   explored = NodeWrapper[]
   
@@ -175,6 +176,7 @@ function dijkstra(pf::PathFinder, origin::Node, destination::Node)
   head.tracking = true
   head.dist_pickup = 0
   head.dist_bus = 0
+  # println("DIJK: ", head, " with distance  ", min(head.dist_pickup, head.dist_bus, head.dist_dropoff))
   
   update_nodewrapper_pickup(head, frontier, pf)
   update_nodewrapper_bus(head, frontier, pf)
@@ -183,6 +185,7 @@ function dijkstra(pf::PathFinder, origin::Node, destination::Node)
   while true
     n = dequeue!(frontier)
     push!(explored, n)
+    # println("DIJK: ", n, " with distance  ", min(n.dist_pickup, n.dist_bus, n.dist_dropoff))
     
     if n.n == destination
       if n.caller_pickup == nothing && n.caller_bus == nothing &&
@@ -244,24 +247,24 @@ end
 function search_path(pf::PathFinder, modify::Bool)
   count = 0 # This is only used as a statistic to display to the user.
   
-  paths = Tuple{Path, Float64, Node, Node, Float64}[]
+  paths = Tuple{Path, Float64, Node, Node, Float64, Float64}[]
   for (x, (o, d)) in zip(pf.prob.sol.dualdemand, keys(pf.prob.data.demands))
     pf.prob.data.demands[(o, d)] > 0 || continue
     path, duallength = dijkstra(pf, o, d)
     excess = x - duallength
     if excess > pf.prob.param.epsilon
       count += 1
-      push!(paths, (path, excess, o, d, duallength))
+      push!(paths, (path, excess, o, d, duallength, x))
       sort!(paths, by = p->p[2], rev=true)
       length(paths) > prob.param.batch_path ? pop!(paths) : nothing
     end
   end
   
   if modify
-    for (path, excess, o, d, dua) in paths
+    for (path, excess, o, d, dua, x) in paths
       #println("Adding a path.", " excess ", excess)
       #println("Length", length(pf.prob.comp.paths), " excess ", excess, " dual ", dua)
-      #println("Origin: ", o, " Destination: ", d)
+      #println("Origin: ", o, " Destination: ", d, " Against: ", x)
       apply_path(pf, path, o, d)
     end
   end
